@@ -8,15 +8,17 @@
 
 需要 **Node.js 24.x**（开发验证版本 24.19.0）和 Git。`node:sqlite` 随 Node 提供，不需要单独编译 SQLite 扩展。首次安装依赖需要网络，安装和构建完成后日常运行不依赖网络。
 
+当前远程发布因连接身份问题暂停，GitHub main 还没有本版源码。先下载本次交付的 `life-os-v0.1.bundle`，在文件所在目录执行：
+
 ```bash
-git clone https://github.com/BryanYue/life-os.git
+git clone -b feat/local-life-os life-os-v0.1.bundle life-os
 cd life-os
-# 功能分支在远程发布后使用；当前远程发布状态见 docs/validation.md
-# git switch feat/local-life-os
 npm ci
 npm run build
 npm start
 ```
+
+bundle 包含本地功能分支的完整已审查源码历史，不含运行数据或依赖目录。正确个人连接完成、功能分支发布后，也可从 `https://github.com/BryanYue/life-os.git` clone 并切换至相应功能分支；本次没有推送或创建 PR。
 
 浏览器打开 **http://127.0.0.1:4310**。服务仅监听回环地址；关闭终端或 Ctrl+C 停止。不要将端口反向代理到公网。当前尚未在 Mac 原生环境实测；Linux 上完成安装、构建、API 与 Chromium 验证。
 

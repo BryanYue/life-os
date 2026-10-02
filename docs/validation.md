@@ -1,10 +1,10 @@
 # v0.1 验证结果与未完成项
 
-验证日期：2026-10-02。环境：指定云端 Linux 工作区，Node 24.19.0、npm 11.9.0、系统 Chromium。仅使用测试中生成或明确标注的虚构数据。对应本文件所在提交的源码；可用 `git rev-parse HEAD` 定位。没有连接真实 Vault、设备、金融账户或云同步账户。
+验证日期：2026-10-02。环境：指定云端 Linux 工作区，Node 24.19.0、npm 11.9.0、系统 Chromium。仅使用测试中生成或明确标注的虚构数据。实现提交 `edcf7b02e45d243bad077b99a6cce5d47b1dab19`；后续提交只补充交付文档。可用 `git rev-parse HEAD` 定位打包版本。没有连接真实 Vault、设备、金融账户或云同步账户。
 
 | 检查 | 实际结果 | 证据入口 |
 | --- | --- | --- |
-| 锁定依赖安装 | 通过 `npm install`；干净 clone 的 `npm ci` 另见任务进度 | package-lock.json |
+| 锁定依赖安装 | 通过 `npm install` 和干净本地 clone 的 `npm ci`，生产启动/写入/重启验证通过 | package-lock.json |
 | ESLint / TypeScript | 通过 | `npm run lint` / `npm run typecheck` |
 | 单元与集成 | 35/35 通过，无跳过 | tests/core.test.ts、tests/api.test.ts、tests/importers.test.ts |
 | 生产构建 | 通过，Fastify 服务能提供构建后的 React 界面 | `npm run build` |
