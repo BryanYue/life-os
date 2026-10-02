@@ -1,0 +1,11 @@
+{
+  "id": "example.plants", "name": "植物养护", "version": "0.1.0", "coreApi": 1, "schemaVersion": 1,
+  "codeVisibility": "public", "enabled": true,
+  "entityTypes": [
+    {"id":"plant","name":"植物","fields":[{"key":"species","label":"品种","type":"text","required":true}]},
+    {"id":"care","name":"养护记录","fields":[{"key":"waterMl","label":"浇水毫升","type":"number","min":0}]},
+    {"id":"review","name":"养护复盘","fields":[{"key":"next","label":"下一步","type":"text"}]}
+  ],
+  "relations":[{"id":"related","name":"关联植物、费用、目标","targetModules":["*"]}],
+  "views":["list","timeline","form"]
+}
