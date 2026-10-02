@@ -199,3 +199,54 @@ test("另一个窗口修改后，409保留未保存正文", async ({ page }) => 
   await expect(d.getByRole("alert")).toContainText("版本冲突");
   await expect(d.locator("textarea")).toHaveValue("未保存文本必须保留");
 });
+
+test("声明式植物模块自动生成表单、关系与时间线", async ({ page }) => {
+  const session = page.waitForResponse((r) => r.url().endsWith("/api/session"));
+  await ready(page);
+  const csrf = (await (await session).json()).csrf;
+  const { readFileSync } = await import("node:fs");
+  const manifest: Module = JSON.parse(
+    readFileSync("examples/plants.json", "utf8"),
+  );
+  const response = await page.request.post("/api/modules", {
+    headers: { "x-csrf-token": csrf },
+    data: manifest,
+  });
+  expect(response.status()).toBe(200);
+  await page.reload();
+  await page.getByRole("button", { name: "植物养护", exact: true }).click();
+  let d = await create(
+    page,
+    "虚构浏览器植物",
+    "plant",
+    "fact",
+    manifest.entityTypes[0].fields,
+  );
+  await d.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(d).toBeHidden();
+  d = await create(page, "虚构浏览器养护", "care", "fact");
+  await d.getByLabel("浇水毫升", { exact: false }).fill("120");
+  await d
+    .getByLabel("关联植物、费用、目标", { exact: false })
+    .selectOption({ label: "虚构浏览器植物 · 事实" });
+  await d.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(d).toBeHidden();
+  await page.getByRole("button", { name: "时间线视图", exact: true }).click();
+  await expect(page.locator(".record-list.timeline")).toContainText(
+    "虚构浏览器养护",
+  );
+  await page.getByRole("button", { name: /写一份回顾/ }).click();
+  d = page.getByRole("dialog");
+  await d.getByLabel("标题", { exact: true }).fill("虚构植物复盘");
+  await d
+    .getByLabel("关联植物、费用、目标", { exact: false })
+    .selectOption({ label: "虚构浏览器养护 · 事实" });
+  await d.locator("textarea").fill("对照虚构养护与费用记录。");
+  await d.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(d).toBeHidden();
+  await page.reload();
+  await page.getByRole("button", { name: "植物养护", exact: true }).click();
+  await expect(
+    page.locator(".record-main").filter({ hasText: "虚构植物复盘" }),
+  ).toHaveCount(1);
+});

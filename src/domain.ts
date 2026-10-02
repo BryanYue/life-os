@@ -1,6 +1,7 @@
 import type { Entity, EntityInput, PlanDraft } from "./types.js";
 import { Store } from "./store.js";
 import { hash } from "./vault.js";
+import { builtins } from "./modules.js";
 import { allocate } from "./planner.js";
 export function addDecimal(a: string, b: string) {
   const scale = 8n,
@@ -108,7 +109,9 @@ export function acceptPlan(store: Store, draft: PlanDraft) {
 }
 export function seedDemo(store: Store) {
   const added: Entity[] = [];
-  for (const m of store.modules()) {
+  for (const m of store
+    .modules()
+    .filter((m) => m.enabled && builtins.some((b) => b.id === m.id))) {
     if (store.list({ module: m.id }).length) continue;
     const goal = store.save({
       expectedVersion: 0,

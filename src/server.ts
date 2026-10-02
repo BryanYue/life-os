@@ -1,15 +1,10 @@
 import Fastify from "fastify";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { homedir } from "node:os";
-import { resolve, join, extname, dirname } from "node:path";
+import { resolve, join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  mkdirSync,
-  realpathSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync, mkdirSync } from "node:fs";
+import { outsideRepository, projectRoot } from "./paths.js";
 import { Store } from "./store.js";
 import { importHealth, type HealthExport } from "./importers.js";
 import { allocate } from "./planner.js";
@@ -24,8 +19,11 @@ import type {
   Capability,
 } from "./types.js";
 const token = () => randomBytes(32).toString("hex");
-const equal = (a: string, b: string) =>
-  a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const equal = (a: string, b: string) => {
+  const left = Buffer.from(a),
+    right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+};
 export function app(
   store: Store,
   options: {
@@ -61,13 +59,13 @@ export function app(
     )
       return reply.code(403).send({ error: "Origin denied" });
     if (!req.url.startsWith("/api/")) return;
-    if (req.url === "/api/session" && req.method === "GET") return;
     const authorization = req.headers.authorization;
-    if (
-      authorization &&
-      options.agentToken &&
-      equal(authorization, "Bearer " + options.agentToken)
-    ) {
+    if (authorization !== undefined) {
+      if (
+        !options.agentToken ||
+        !equal(authorization, "Bearer " + options.agentToken)
+      )
+        return reply.code(401).send({ error: "Invalid agent credential" });
       if (
         !["/api/agent/entities", "/api/agent/suggestions"].includes(
           req.url.split("?")[0],
@@ -76,6 +74,7 @@ export function app(
         return reply.code(403).send({ error: "Agent endpoint denied" });
       return;
     }
+    if (req.url === "/api/session" && req.method === "GET") return;
     const sid = /(?:^|;\s*)life_session=([a-f0-9]+)/.exec(
       req.headers.cookie ?? "",
     )?.[1];
@@ -244,14 +243,10 @@ const isMain =
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const project = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    import.meta.url.includes("/dist/") ? "../.." : "..",
+  const project = projectRoot;
+  const root = outsideRepository(
+    process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"),
   );
-  const root = resolve(process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"));
-  const existing = existsSync(root) ? realpathSync(root) : root;
-  if (existing === project || existing.startsWith(project + "/"))
-    throw Error("LIFE_OS_HOME must be outside the repository");
   const store = new Store(root);
   const plugins = join(root, "plugins");
   mkdirSync(plugins, { recursive: true });

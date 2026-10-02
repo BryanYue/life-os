@@ -15,7 +15,7 @@ import { Store } from "../src/store.js";
 import { builtins } from "../src/modules.js";
 import { hash } from "../src/vault.js";
 import { allocate } from "../src/planner.js";
-import { addDecimal, summary, acceptPlan } from "../src/domain.js";
+import { addDecimal, summary, acceptPlan, seedDemo } from "../src/domain.js";
 import type {
   EntityInput,
   Module,
@@ -842,6 +842,152 @@ test("external Markdown edits become incremental operations and merge on another
     assert.equal(f.s.audit().at(-1)!.action, "external-note");
   } finally {
     b.close();
+    f.close();
+  }
+});
+
+test("D08 fictional minor, occasion, shared activity and review persist with edit/query and stay local", () => {
+  const f = fixture();
+  let restored: Store | undefined;
+  try {
+    const member = save(f.s, {
+      ...input("family", "member", { relation: "虚构家庭成员", minor: "是" }),
+      kind: "fact",
+    });
+    const occasion = save(f.s, {
+      ...input("family", "occasion", {
+        date: "2030-05-01",
+        agreement: "虚构共同阅读约定",
+      }),
+      relations: [{ type: "related", target: member.id }],
+    });
+    const changed = edit(f.s, occasion.id, {
+      fields: { date: "2030-05-02", agreement: "虚构共同阅读约定（改期）" },
+    });
+    const actual = save(f.s, {
+      ...input("family", "interaction", {
+        activity: "虚构共同阅读",
+        followup: "下一次由人工安排",
+      }),
+      kind: "fact",
+      relations: [
+        { type: "actual-of", target: occasion.id },
+        { type: "related", target: member.id },
+      ],
+    });
+    const review = save(f.s, {
+      ...input("family", "review", {
+        period: "虚构周",
+        feeling: "轻量共同活动",
+        next: "保留自主安排",
+      }),
+      kind: "fact",
+      relations: [
+        { type: "evidence", target: actual.id },
+        { type: "related", target: member.id },
+      ],
+    });
+    assert.equal(changed.version, 2);
+    assert.equal(f.s.list({ module: "family", q: "改期" })[0].id, occasion.id);
+    assert.equal(f.s.exportPacket(0, ["family"]).operations.length, 0);
+    restored = Store.restore(join(f.root, "family-restored"), f.s.backup());
+    assert.equal(restored.get(member.id)!.fields.minor, "是");
+    assert.equal(restored.get(occasion.id)!.fields.date, "2030-05-02");
+    assert.equal(restored.get(review.id)!.relations[0].target, actual.id);
+    assert.equal(restored.get(actual.id)!.relations[0].target, occasion.id);
+    assert.equal(restored.list({ module: "family" }).length, 4);
+  } finally {
+    restored?.close();
+    f.close();
+  }
+});
+
+test("G04 plants relate care, dated expense and review using only the declared extension contract", () => {
+  const f = fixture();
+  try {
+    const m = JSON.parse(
+      readFileSync("examples/plants.json", "utf8"),
+    ) as Module;
+    f.s.register(m);
+    const plant = save(f.s, input(m.id, "plant", { species: "虚构演示植物" }));
+    const care = save(f.s, {
+      ...input(m.id, "care", { waterMl: 100 }),
+      kind: "fact",
+      relations: [{ type: "related", target: plant.id }],
+    });
+    const expense = save(f.s, {
+      ...input("finance", "entry", {
+        amount: "-2.35",
+        currency: "USD",
+        category: "synthetic-garden",
+      }),
+      kind: "fact",
+      relations: [{ type: "related", target: plant.id }],
+    });
+    const changed = edit(f.s, care.id, {
+      fields: { waterMl: 120 },
+      relations: [
+        { type: "related", target: plant.id },
+        { type: "related", target: expense.id },
+      ],
+    });
+    const review = save(f.s, {
+      ...input(m.id, "review", { next: "观察虚构记录" }),
+      kind: "fact",
+      relations: [
+        { type: "related", target: changed.id },
+        { type: "related", target: expense.id },
+      ],
+    });
+    assert.equal(f.s.list({ module: m.id, q: "120" })[0].id, care.id);
+    assert.equal(f.s.get(review.id)!.relations[1].target, expense.id);
+    assert.equal(f.s.get(care.id)!.occurredAt, expense.occurredAt);
+    assert.deepEqual(summary(f.s.list()).finance, [
+      { currency: "USD", category: "synthetic-garden", total: "-2.35" },
+    ]);
+    assert.equal(
+      f.s
+        .modules()
+        .find((x) => x.id === m.id)!
+        .views.includes("timeline"),
+      true,
+    );
+    assert.equal(seedDemo(f.s).added, 14);
+    assert.equal(f.s.list({ module: m.id }).length, 3);
+    assert.equal(seedDemo(f.s).added, 0);
+  } finally {
+    f.close();
+  }
+});
+
+test("migrated history rejects empty-peer replay atomically; trusted full backup can seed an isolated replica", () => {
+  const f = fixture();
+  const peer = new Store(join(f.root, "peer"));
+  let restored: Store | undefined;
+  try {
+    const m = JSON.parse(
+      readFileSync("examples/plants.json", "utf8"),
+    ) as Module;
+    f.s.register(m);
+    peer.register(m);
+    const e = save(f.s, input(m.id, "care", { waterMl: 100 }));
+    const next = structuredClone(m);
+    next.schemaVersion = 2;
+    next.version = "0.2.0";
+    next.entityTypes.find((t) => t.id === "care")!.fields = [
+      { key: "waterMillilitres", label: "水量", type: "number" },
+    ];
+    f.s.migrateModule(next, { waterMl: "waterMillilitres" });
+    const packet = f.s.exportPacket(0, [m.id]);
+    assert.throws(() => peer.importPacket(packet, [m.id]), /Invalid entity/);
+    assert.equal(peer.list().length, 0);
+    assert.equal(peer.db.prepare("SELECT * FROM cursors").all().length, 0);
+    restored = Store.restore(join(f.root, "seeded"), f.s.backup());
+    assert.equal(restored.get(e.id)!.fields.waterMillilitres, 100);
+    assert.equal(restored.importPacket(packet, [m.id]).applied, 0);
+  } finally {
+    restored?.close();
+    peer.close();
     f.close();
   }
 });

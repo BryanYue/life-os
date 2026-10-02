@@ -74,6 +74,34 @@ test("HTTP session, origin, host, CSRF, actor forgery and agent permissions", as
     assert.equal(got.json().length, 1);
     const ai = { ...host, authorization: "Bearer synthetic-test-token" };
     assert.equal(
+      (await server.inject({ url: "/api/session", headers: ai })).statusCode,
+      403,
+    );
+    for (const authorization of [
+      "Bearer invalid",
+      "Bearer " + "é".repeat(20),
+    ]) {
+      assert.equal(
+        (
+          await server.inject({
+            url: "/api/session",
+            headers: { ...headers, authorization },
+          })
+        ).statusCode,
+        401,
+      );
+      assert.equal(
+        (
+          await server.inject({
+            url: "/api/entities",
+            headers: { ...headers, authorization },
+          })
+        ).statusCode,
+        401,
+      );
+    }
+
+    assert.equal(
       (
         await server.inject({
           method: "POST",

@@ -3,22 +3,62 @@ import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 import { Store } from "./store.js";
 import { importHealth } from "./importers.js";
+import { outsideRepository } from "./paths.js";
+import {
+  createKeyFile,
+  readKeyFile,
+  seal,
+  unseal,
+  type Purpose,
+} from "./sealed.js";
+import type { SyncPacket } from "./types.js";
 import { seedDemo } from "./domain.js";
 const [command, ...args] = process.argv.slice(2);
 const root = resolve(process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"));
-if (command === "restore") {
+const key = () => {
+  const path = process.env.LIFE_OS_KEY_FILE;
+  if (!path)
+    throw Error(
+      "Set LIFE_OS_KEY_FILE to a private key file outside the repository",
+    );
+  return readKeyFile(path);
+};
+const readInput = <T>(path: string, purpose: Purpose): T => {
+  const data = JSON.parse(readFileSync(path, "utf8"));
+  return command.endsWith("-encrypted")
+    ? unseal<T>(data, purpose, key())
+    : data;
+};
+const output = (path: string, value: unknown, purpose: Purpose) => {
+  writeFileSync(
+    outsideRepository(path),
+    JSON.stringify(
+      command.endsWith("-encrypted") ? seal(value, purpose, key()) : value,
+    ),
+    { flag: "wx", mode: 0o600 },
+  );
+};
+if (command === "keygen") {
+  if (!args[0])
+    throw Error(
+      "keygen NEW_KEY_FILE (keep a separate secure copy; lost keys cannot be recovered)",
+    );
+  createKeyFile(args[0]);
+  console.log(
+    "Private local key file created; keep it separate from exported files.",
+  );
+} else if (command === "restore" || command === "restore-encrypted") {
   if (!args[0] || !args[1]) throw Error("restore BACKUP NEW_DIRECTORY");
   const restored = Store.restore(
-    resolve(args[1]),
-    JSON.parse(readFileSync(args[0], "utf8")),
+    outsideRepository(args[1]),
+    readInput(args[0], "backup"),
   );
   restored.close();
   console.log(
     "Restored into isolated new directory. Automatic cloud sync is not configured.",
   );
 } else {
-  if (root === process.cwd() || root.startsWith(process.cwd() + "/"))
-    throw Error("Data must be outside the repository");
+  outsideRepository(root);
   const s = new Store(root, { skipNoteRecovery: command === "recover-note" });
   try {
     switch (command) {
@@ -32,11 +72,9 @@ if (command === "restore") {
         console.log(seedDemo(s));
         break;
       case "backup":
+      case "backup-encrypted":
         if (!args[0]) throw Error("backup OUTPUT_FILE");
-        writeFileSync(args[0], JSON.stringify(s.backup()), {
-          mode: 0o600,
-          flag: "wx",
-        });
+        output(args[0], s.backup(), "backup");
         console.log("Backup written");
         break;
       case "register":
@@ -62,27 +100,27 @@ if (command === "restore") {
           s.importSource(JSON.parse(readFileSync(args[0], "utf8"))).id,
         );
         break;
-      case "export-sync": {
+      case "export-sync":
+      case "export-sync-encrypted": {
         const config = JSON.parse(
           readFileSync(join(root, "config.json"), "utf8"),
         );
-        writeFileSync(
+        output(
           args[0],
-          JSON.stringify(
-            s.exportPacket(Number(args[1] ?? 0), config.syncModules ?? []),
-          ),
-          { mode: 0o600, flag: "wx" },
+          s.exportPacket(Number(args[1] ?? 0), config.syncModules ?? []),
+          "sync",
         );
         console.log("Local simulation packet exported");
         break;
       }
-      case "import-sync": {
+      case "import-sync":
+      case "import-sync-encrypted": {
         const config = JSON.parse(
           readFileSync(join(root, "config.json"), "utf8"),
         );
         console.log(
           s.importPacket(
-            JSON.parse(readFileSync(args[0], "utf8")),
+            readInput<SyncPacket>(args[0], "sync"),
             config.syncModules ?? [],
           ),
         );
@@ -90,7 +128,7 @@ if (command === "restore") {
       }
       default:
         console.log(
-          "Commands: demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE",
+          "Commands: demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
         );
     }
   } finally {

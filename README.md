@@ -18,7 +18,7 @@ npm run build
 npm start
 ```
 
-bundle 包含本地功能分支的完整已审查源码历史，不含运行数据或依赖目录。正确个人连接完成、功能分支发布后，也可从 `https://github.com/BryanYue/life-os.git` clone 并切换至相应功能分支；本次没有推送或创建 PR。
+已交付 bundle 固定于文档提交 `c513c613`，不含本次审查后的修复；当前修复保存在本地功能分支，按用户偏好未重新打包。bundle 不含运行数据或依赖目录。正确个人连接完成、功能分支发布后，也可从 `https://github.com/BryanYue/life-os.git` clone 并切换至相应功能分支；本次没有推送或创建 PR。
 
 浏览器打开 **http://127.0.0.1:4310**。服务仅监听回环地址；关闭终端或 Ctrl+C 停止。不要将端口反向代理到公网。当前尚未在 Mac 原生环境实测；Linux 上完成安装、构建、API 与 Chromium 验证。
 
@@ -58,7 +58,18 @@ npm run cli -- restore "$HOME/life-os-backup.json" "$HOME/.life-os-restored"
 LIFE_OS_HOME="$HOME/.life-os-restored" npm start
 ```
 
-恢复副本具有新的设备 ID，保留历史游标、操作 ID、来源去重状态和模块版本，标记为隔离恢复；没有自动上传。关闭旧服务后在新副本检查记录、关系与笔记，再决定正式使用哪个目录。未自动启用备份计划或保留期限。
+恢复先在临时目录验证全部必需表、实体 Schema、笔记与索引、关联和路径；无效备份不发布目标目录，修正后可使用同一路径重试。保留受管理笔记的相对路径。恢复副本具有新的设备 ID，保留历史游标、操作 ID、来源去重状态和模块版本，标记为隔离恢复；没有自动上传。关闭旧服务后在新副本检查记录、关系与笔记，再决定正式使用哪个目录。未自动启用备份计划或保留期限。
+
+可选的 CLI 加密导出采用 AES-256-GCM。以下命令只创建本机文件，不连接云服务；浏览器备份和不带 `-encrypted` 的命令仍是明文。运行目录、CLI 备份/同步输出、恢复目标与密钥路径均拒绝位于源码仓库内（含现有父目录符号链接）。
+
+```bash
+npm run cli -- keygen "$HOME/.life-os-export.key"
+export LIFE_OS_KEY_FILE="$HOME/.life-os-export.key"
+npm run cli -- backup-encrypted "$HOME/life-os-backup.sealed.json"
+npm run cli -- restore-encrypted "$HOME/life-os-backup.sealed.json" "$HOME/.life-os-restored-sealed"
+```
+
+密钥文件为 32 字节随机密钥，权限需为 `600`，不会显示在日志中。请单独安全保管密钥副本，**丢失密钥就无法解密**；不要把密钥与导出包一起发送。共享密钥只证明持有该密钥，尚不提供每设备身份、撤销、轮换或 Keychain。SQLite、Vault 和自动迁移备份仍是本机明文。
 
 如果崩溃后又在外部修改了待写入笔记，启动会保留两边内容并报告实体 ID。以下是明确的人工恢复选择；未选择版本保存在数据根目录的 `note-conflict-*.md`：
 

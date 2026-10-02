@@ -10,6 +10,8 @@ import {
   openSync,
   fsyncSync,
   closeSync,
+  linkSync,
+  unlinkSync,
 } from "node:fs";
 import { join, dirname, relative, isAbsolute } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -80,8 +82,9 @@ export class Vault {
     doc.set("life_module", module);
     return "---\n" + doc.toString() + "---\n" + body;
   }
-  write(id: string, markdown: string) {
-    const path = this.locate(id) ?? this.check(join(this.root, id + ".md"));
+  write(id: string, markdown: string, expectedHash?: string) {
+    const existing = this.locate(id);
+    let path = existing ?? this.check(join(this.root, id + ".md"));
     const temp = this.check(join(dirname(path), "." + randomUUID() + ".tmp"));
     const fd = openSync(temp, "wx", 0o600);
     try {
@@ -90,6 +93,30 @@ export class Vault {
     } finally {
       closeSync(fd);
     }
-    renameSync(temp, path);
+    try {
+      if (existing) {
+        if (
+          expectedHash !== undefined &&
+          hash(readFileSync(path, "utf8")) !== expectedHash
+        )
+          throw Error(
+            "Pending Markdown conflict; external file preserved. Use note recovery.",
+          );
+        renameSync(temp, path);
+      } else {
+        // Exclusive creation also protects files created since locate() ran.
+        for (;;) {
+          try {
+            linkSync(temp, path);
+            break;
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+            path = this.check(join(this.root, id + "-" + randomUUID() + ".md"));
+          }
+        }
+      }
+    } finally {
+      if (existsSync(temp)) unlinkSync(temp);
+    }
   }
 }
