@@ -3,6 +3,7 @@ import { Store } from "./store.js";
 import { hash } from "./vault.js";
 import { builtins } from "./modules.js";
 import { allocate } from "./planner.js";
+import { readingReport } from "./reading.js";
 export function addDecimal(a: string, b: string) {
   const scale = 8n,
     unit = 10n ** scale;
@@ -22,12 +23,22 @@ export function addDecimal(a: string, b: string) {
     (fraction ? "." + fraction : "")
   );
 }
-export function summary(entities: Entity[]) {
+export function summary(entities: Entity[], moduleId?: string) {
+  const unique = new Map<string, Entity>();
+  for (const entity of entities) {
+    const previous = unique.get(entity.id);
+    if (!previous || previous.version <= entity.version)
+      unique.set(entity.id, entity);
+  }
+  const active = [...unique.values()].filter((e) => !e.deleted);
+  const selected = moduleId
+    ? active.filter((e) => e.module === moduleId)
+    : active;
   const counts = { plan: 0, fact: 0, inference: 0 };
   const byType: Record<string, number> = {};
   const groups = new Map<string, string>();
   const minutesByLanguage: Record<string, number> = {};
-  for (const e of entities) {
+  for (const e of selected) {
     counts[e.kind]++;
     byType[e.type] = (byType[e.type] ?? 0) + 1;
     if (e.module === "finance" && e.type === "entry" && e.kind === "fact") {
@@ -47,6 +58,12 @@ export function summary(entities: Entity[]) {
         (minutesByLanguage[l] ?? 0) + Number(e.fields.minutes ?? 0);
     }
   }
+  const reading = readingReport(active);
+  if (!moduleId || ["learning", "languages"].includes(moduleId)) {
+    for (const group of reading.byLanguage)
+      minutesByLanguage[group.language] =
+        (minutesByLanguage[group.language] ?? 0) + group.minutes;
+  }
   return {
     counts,
     byType,
@@ -57,6 +74,9 @@ export function summary(entities: Entity[]) {
         return { currency, category, total };
       }),
     minutesByLanguage,
+    integratedReadingMinutes: reading.uniqueTotalMinutes,
+    languageMinutesPolicy:
+      "独立语言练习加综合阅读的唯一事实记录；词汇、解释、打卡和目标覆盖视角不重复计时。",
   };
 }
 export function acceptPlan(store: Store, draft: PlanDraft) {

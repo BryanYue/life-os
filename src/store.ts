@@ -1407,7 +1407,7 @@ export class Store {
         value.schemaVersion = next.schemaVersion;
         value.version++;
         value.updatedAt = now();
-        this.validate(value);
+        this.validate(value, undefined, true);
         const seq = Number(
           this.db
             .prepare("SELECT COALESCE(MAX(seq),0)+1 AS n FROM operations")

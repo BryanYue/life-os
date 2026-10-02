@@ -2581,3 +2581,308 @@ main {
     white-space: normal;
   }
 }
+
+[hidden] {
+  display: none !important;
+}
+.learning-workspace {
+  margin-bottom: 28px;
+  min-width: 0;
+}
+.learning-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 22px 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f3f5ed;
+}
+.learning-navigation button {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 15px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #6c7862;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.learning-navigation button.active {
+  background: #fff;
+  color: #374b2e;
+  box-shadow: 0 2px 9px #24361c0a;
+}
+.reading-workspace,
+.learning-tasks,
+.advice-panel,
+.expression-studio {
+  font-size: 13px;
+  line-height: 1.7;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.reading-workspace details,
+.learning-tasks details,
+.advice-panel details,
+.expression-studio details {
+  min-width: 0;
+}
+.reading-workspace summary,
+.learning-tasks summary,
+.advice-panel summary,
+.expression-studio summary {
+  padding: 14px 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: #405536;
+}
+.reading-main,
+.reading-review,
+.learning-checklist,
+.learning-reminders,
+.learning-progress,
+.expression-studio {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.reading-guide {
+  background: #f2f6eb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 20px 0;
+}
+.reading-guide ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 32px;
+  margin: 12px 0 0;
+  padding-left: 22px;
+}
+.reading-guide li {
+  flex: 1 1 150px;
+}
+.goal-picker,
+.expression-goals {
+  min-width: 0;
+  border: 0;
+  padding: 12px 0;
+}
+.goal-picker legend {
+  font-size: 12px;
+  color: #65755c;
+  padding: 0;
+}
+.goal-picker .check-field,
+.expression-goals .check-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+}
+.goal-picker input,
+.checklist-check input,
+.expression-goals input {
+  width: 20px;
+  height: 20px;
+  accent-color: #6b8451;
+  flex-shrink: 0;
+}
+.reading-original,
+.expression-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  max-height: 420px;
+  overflow-y: auto;
+  background: #f5f6f0;
+  border-radius: 10px;
+  padding: 18px;
+}
+.reading-reference,
+.reading-linked-sources,
+.checklist-meta {
+  display: flex;
+  gap: 8px 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.reading-session-form {
+  padding: 18px 0;
+}
+.reading-views,
+.reading-artifacts,
+.reminder-grid,
+.advice-grid,
+.expression-grid,
+.expression-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+.reading-view,
+.reading-artifact,
+.reminder-card,
+.advice-card,
+.upgrade-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 0;
+}
+.reading-view {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  background: #fafbf7;
+}
+.reading-artifact p,
+.advice-explanation {
+  white-space: pre-wrap;
+}
+.reading-history-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.checklist-items {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+.checklist-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.checklist-check {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 14px;
+  cursor: pointer;
+}
+.checklist-meta {
+  padding-left: 32px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #7b8970;
+}
+.in-app-note {
+  padding: 14px 18px;
+  background: #f1f5e8;
+  border-radius: 10px;
+  color: #5f7250;
+}
+.expression-studio {
+  background: white;
+  padding: 22px 28px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.expression-stack {
+  display: grid;
+  gap: 16px;
+}
+.expression-original textarea {
+  min-height: 180px;
+}
+.expression-reason-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.expression-evidence {
+  min-width: 0;
+  padding: 14px;
+  background: #f4f6ef;
+  border-radius: 8px;
+}
+.expression-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 15px;
+}
+.expression-coverage {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.5fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.expression-coverage dt {
+  color: #7d8b73;
+  font-size: 11px;
+}
+.expression-coverage dd {
+  margin: 0;
+}
+.reading-workspace .form-grid,
+.learning-tasks .form-grid,
+.advice-panel .form-grid {
+  align-items: start;
+}
+.reading-workspace .form-help,
+.learning-tasks .form-help,
+.advice-panel .form-help,
+.expression-studio .form-help {
+  font-size: 12px;
+}
+.learning-workspace input,
+.learning-workspace select,
+.learning-workspace textarea,
+.advice-panel input,
+.advice-panel textarea {
+  max-width: 100%;
+  min-width: 0;
+  font-size: 13px;
+}
+.builtin-upgrade .upgrade-card {
+  margin: 14px 0;
+}
+@media (max-width: 690px) {
+  .reading-views,
+  .reading-artifacts,
+  .reminder-grid,
+  .advice-grid,
+  .expression-grid,
+  .expression-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .expression-studio {
+    padding: 16px;
+  }
+  .learning-workspace .button,
+  .advice-panel .button {
+    min-height: 42px;
+  }
+  .learning-workspace .text-button,
+  .advice-panel .text-button {
+    min-height: 34px;
+  }
+  .learning-workspace .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .learning-workspace .section-heading,
+  .advice-panel .section-heading {
+    flex-wrap: wrap;
+  }
+  .learning-navigation button {
+    min-width: 105px;
+  }
+  .reading-guide ol {
+    gap: 8px;
+    flex-direction: column;
+  }
+  .reading-guide li {
+    flex: none;
+  }
+}

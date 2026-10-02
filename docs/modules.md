@@ -16,6 +16,10 @@ npm run cli -- register examples/plants.json
 
 ## Schema 升级
 
+内置 `learning` 和 `languages` 从原版 schema 1 升至 schema 2，新增阅读、清单、提醒和表达等数据类型。运行 `npm run cli -- builtin-upgrades` 查看，再分别执行 `npm run cli -- upgrade-builtin learning` 与 `npm run cli -- upgrade-builtin languages`；界面提供同一人工升级入口。清单须与已知旧版本一致（允许保留 enabled/codeVisibility 的本机选择），自定义清单及未知版本拒绝覆盖。升级为可重试的单模块迁移，各自保存备份；不会自动启用停用模块、改变私有标记或增加目标。
+
+所有关联使用既有稳定 ID；阅读分钟只保存在 `learning/session` 事实中。解释为独立推断，词汇为复习记录，打卡为事实，清单/提醒为计划；表达原稿、修订和结构反馈各有明确来源。其他模块无需升级即可关联这些记录。已有同步副本须显式完成对应迁移，空副本可按当前 Schema bootstrap。
+
 假设从植物 v0.1.0/schema 1 的 `waterMl` 改为 v0.2.0/schema 2 的 `waterMillilitres`：准备新清单及 `{"waterMl":"waterMillilitres"}` 重命名映射文件，再执行：
 
 ```bash

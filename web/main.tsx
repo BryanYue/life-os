@@ -18,6 +18,10 @@ import {
 } from "./SpecialistPanels.js";
 import { PeriodPlanner, ReviewPanel } from "./PeriodPlanner.js";
 import { SyncTools } from "./SyncTools.js";
+import { ReadingWorkspace } from "./ReadingWorkspace.js";
+import { LearningTasks } from "./LearningTasks.js";
+import { AdvicePanel } from "./AdvicePanel.js";
+import { ExpressionStudio } from "./ExpressionStudio.js";
 import { PluginTools } from "./PluginTools.js";
 
 type Page = "home" | "module" | "planner" | "settings";
@@ -112,7 +116,10 @@ function App() {
     module: Module;
     entity?: Entity;
     review?: boolean;
+    initialType?: string;
+    initialStatus?: Entity["status"];
   } | null>(null);
+  const [learningView, setLearningView] = useState("reading");
   const [mobileNav, setMobileNav] = useState(false);
   const activeModule = modules.find((module) => module.id === moduleId);
   async function request<T>(
@@ -316,6 +323,20 @@ function App() {
       const module = modules.find((item) => item.id === entity?.module);
       if (entity && module) setEditor({ module, entity });
       else setError(`来源记录不可用：${id}`);
+    },
+  };
+  const readingProps = {
+    ...specialistProps,
+    modules,
+    onShowTasks: () => setLearningView("tasks"),
+    onCreateGoal: (id: string) => {
+      const module = modules.find((item) => item.id === id);
+      if (module)
+        setEditor({
+          module,
+          initialType: id === "languages" ? "language-goal" : "goal",
+          initialStatus: "active",
+        });
     },
   };
   return (
@@ -607,6 +628,46 @@ function App() {
                   {page === "module" && moduleId === "planning" && (
                     <ReviewPanel {...specialistProps} />
                   )}
+                  {page === "home" && <AdvicePanel {...readingProps} />}
+                  {page === "module" &&
+                    ["learning", "languages"].includes(moduleId) && (
+                      <div className="learning-workspace">
+                        <div
+                          className="learning-navigation"
+                          role="tablist"
+                          aria-label="学习工作区"
+                        >
+                          {[
+                            ["reading", "同一材料阅读"],
+                            ["tasks", "清单与提醒"],
+                            ["expression", "表达练习"],
+                            ["advice", "依据与建议"],
+                          ].map(([id, title]) => (
+                            <button
+                              key={id}
+                              role="tab"
+                              aria-selected={learningView === id}
+                              className={learningView === id ? "active" : ""}
+                              onClick={() => setLearningView(id)}
+                            >
+                              {title}
+                            </button>
+                          ))}
+                        </div>
+                        <div hidden={learningView !== "reading"}>
+                          <ReadingWorkspace {...readingProps} />
+                        </div>
+                        <div hidden={learningView !== "tasks"}>
+                          <LearningTasks {...readingProps} />
+                        </div>
+                        <div hidden={learningView !== "expression"}>
+                          <ExpressionStudio {...readingProps} />
+                        </div>
+                        <div hidden={learningView !== "advice"}>
+                          <AdvicePanel {...readingProps} />
+                        </div>
+                      </div>
+                    )}
                   <section className="records-section">
                     <div className="section-heading">
                       <div>
@@ -1120,6 +1181,8 @@ function App() {
           }
           module={editor.module}
           existing={editor.entity}
+          initialType={editor.initialType}
+          initialStatus={editor.initialStatus}
           review={editor.review}
           entities={entities}
           busy={busy}
@@ -1284,6 +1347,8 @@ function Comparison({
 type Run = (work: () => Promise<void>, message?: string) => Promise<void>;
 function Editor({
   module,
+  initialType,
+  initialStatus,
   existing,
   review,
   entities,
@@ -1294,6 +1359,8 @@ function Editor({
   run,
 }: {
   module: Module;
+  initialType?: string;
+  initialStatus?: Entity["status"];
   existing?: Entity;
   review?: boolean;
   entities: Entity[];
@@ -1308,10 +1375,12 @@ function Editor({
       ? entityInput(existing)
       : {
           module: module.id,
-          type: review ? "review" : (module.entityTypes[0]?.id ?? ""),
+          type: review
+            ? "review"
+            : (initialType ?? module.entityTypes[0]?.id ?? ""),
           title: "",
           kind: review ? "fact" : "plan",
-          status: "draft",
+          status: initialStatus ?? "draft",
           occurredAt: new Date().toISOString(),
           timeZone: zone(),
           fields: {},

@@ -26,6 +26,7 @@ import type { SyncBootstrap, SyncProjection } from "./types.js";
 import { importResearchResult } from "./research.js";
 import { importAppleHealthXml } from "./apple-health.js";
 import { seedDemo } from "./domain.js";
+import { pendingBuiltinUpgrades, upgradeBuiltin } from "./builtin-upgrades.js";
 const [command, ...args] = process.argv.slice(2);
 const root = resolve(process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"));
 const key = () => {
@@ -79,6 +80,13 @@ if (command === "keygen") {
   };
   try {
     switch (command) {
+      case "builtin-upgrades":
+        console.log(pendingBuiltinUpgrades(s));
+        break;
+      case "upgrade-builtin":
+        if (!args[0]) throw Error("upgrade-builtin learning|languages");
+        console.log(upgradeBuiltin(s, args[0]));
+        break;
       case "plugins": {
         const manager = new PluginManager(s, { repositoryRoot: projectRoot });
         const [action, idOrPath, ...rest] = args;
@@ -256,7 +264,7 @@ if (command === "keygen") {
       }
       default:
         console.log(
-          "Commands: demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE, export-bootstrap FILE, import-bootstrap FILE [--accept-manifests], export-projection FILE, import-projection FILE, projections, plugins ACTION, import-research FILE, import-apple-health XML TIMEZONE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
+          "Commands: demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], builtin-upgrades, upgrade-builtin learning|languages, import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE, export-bootstrap FILE, import-bootstrap FILE [--accept-manifests], export-projection FILE, import-projection FILE, projections, plugins ACTION, import-research FILE, import-apple-health XML TIMEZONE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
         );
     }
   } finally {

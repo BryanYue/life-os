@@ -13,6 +13,32 @@ import {
   listProjections,
 } from "./sync.js";
 import { normalizedScope } from "./permissions.js";
+import { pendingBuiltinUpgrades, upgradeBuiltin } from "./builtin-upgrades.js";
+import {
+  createLearningTask,
+  checkInLearningTask,
+  createLearningReminder,
+  actOnLearningReminder,
+  reportLearningTasks,
+} from "./learning-tasks.js";
+import { generateAdvice, adoptAdvice } from "./advice.js";
+import {
+  createExpression,
+  reviseExpression,
+  expressionFeedback,
+  expressionReport,
+} from "./expression.js";
+import {
+  createReadingMaterial,
+  recordReading,
+  addReadingExplanation,
+  addReadingVocabulary,
+  readingReport,
+  type CreateReadingMaterialInput,
+  type RecordReadingInput,
+  type ReadingExplanationInput,
+  type ReadingVocabularyInput,
+} from "./reading.js";
 import { financeReport, healthReport } from "./analytics.js";
 import {
   allocatePeriod,
@@ -157,6 +183,82 @@ export function app(
     return { csrf };
   });
   a.get("/api/modules", () => store.modules());
+  a.get("/api/builtin-upgrades", () => pendingBuiltinUpgrades(store));
+  a.post<{ Body: { module: string } }>("/api/builtin-upgrades", (req) =>
+    upgradeBuiltin(store, req.body.module),
+  );
+  a.post<{ Body: CreateReadingMaterialInput }>(
+    "/api/reading/materials",
+    (req) => createReadingMaterial(store, req.body),
+  );
+  a.post<{ Body: RecordReadingInput }>("/api/reading/sessions", (req) =>
+    recordReading(store, req.body),
+  );
+  a.post<{ Body: ReadingExplanationInput }>(
+    "/api/reading/explanations",
+    (req) => addReadingExplanation(store, req.body),
+  );
+  a.post<{ Body: ReadingVocabularyInput }>("/api/reading/vocabulary", (req) =>
+    addReadingVocabulary(store, req.body),
+  );
+  a.get("/api/reports/reading", () => readingReport(store.list()));
+  a.post<{ Body: Parameters<typeof createLearningTask>[1] }>(
+    "/api/learning/tasks",
+    (req) => createLearningTask(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof checkInLearningTask>[1] }>(
+    "/api/learning/check-ins",
+    (req) => checkInLearningTask(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof createLearningReminder>[1] }>(
+    "/api/learning/reminders",
+    (req) => createLearningReminder(store, req.body),
+  );
+  a.post<{
+    Params: { id: string };
+    Body: Omit<Parameters<typeof actOnLearningReminder>[1], "reminderId">;
+  }>("/api/learning/reminders/:id/action", (req) =>
+    actOnLearningReminder(store, { ...req.body, reminderId: req.params.id }),
+  );
+  a.get<{ Querystring: { asOf?: string } }>(
+    "/api/reports/learning-tasks",
+    (req) =>
+      reportLearningTasks(
+        store.list(),
+        req.query.asOf ?? new Date().toISOString(),
+      ),
+  );
+  a.get<{ Querystring: { asOf?: string; days?: string } }>(
+    "/api/advice",
+    (req) =>
+      generateAdvice(
+        store.list(),
+        req.query.asOf ?? new Date().toISOString(),
+        req.query.days === undefined ? 7 : Number(req.query.days),
+      ),
+  );
+  a.post<{ Body: Parameters<typeof adoptAdvice>[1] }>(
+    "/api/advice/adopt",
+    (req) => adoptAdvice(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof createExpression>[1] }>(
+    "/api/expression/create",
+    (req) => createExpression(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof reviseExpression>[1] }>(
+    "/api/expression/revise",
+    (req) => reviseExpression(store, req.body),
+  );
+  a.get<{ Params: { id: string } }>(
+    "/api/expression/:id/feedback",
+    (req, reply) => {
+      const entity = store.get(req.params.id);
+      if (!entity || entity.deleted)
+        return reply.code(404).send({ error: "Expression not found" });
+      return expressionFeedback(entity, store.list());
+    },
+  );
+  a.get("/api/reports/expression", () => expressionReport(store.list()));
   a.post<{ Body: Module }>("/api/modules", (req) => {
     store.register(req.body);
     return { ok: true };
@@ -180,7 +282,7 @@ export function app(
   );
   a.post<{ Body: SaveRequest }>("/api/entities", (req) => store.save(req.body));
   a.get<{ Querystring: { module?: string } }>("/api/summary", (req) =>
-    summary(store.list(req.query)),
+    summary(store.list(), req.query.module),
   );
   a.get<{ Querystring: { quoteCurrency?: string; asOf?: string } }>(
     "/api/reports/finance",

@@ -210,6 +210,87 @@ export const builtins: Module[] = [
     ),
   ]),
 ];
+// Keep the exact previous manifests to recognize safe, additive upgrades.
+export const legacyBuiltins: Module[] = structuredClone(builtins);
+const learning = builtins.find((m) => m.id === "learning")!;
+learning.version = "0.2.0";
+learning.schemaVersion = 2;
+learning.entityTypes
+  .find((t) => t.id === "material")!
+  .fields.push(
+    f("reference", "材料来源"),
+    f("sourceType", "材料类型", "select", false, [
+      "技术文档",
+      "新闻",
+      "剧相关文字",
+      "社交文字",
+      "其他",
+    ]),
+    f("language", "材料语言", "select", false, ["英语", "日语", "法语"]),
+    f("rights", "导入依据", "select", false, [
+      "虚构样例",
+      "本人创作",
+      "获准导入",
+      "公有领域",
+      "合法摘录",
+    ]),
+  );
+learning.entityTypes
+  .find((t) => t.id === "session")!
+  .fields.push(
+    f("language", "阅读语言", "select", false, ["英语", "日语", "法语"]),
+    f("activity", "学习方式", "select", false, ["综合阅读"]),
+  );
+learning.entityTypes
+  .find((t) => t.id === "note")!
+  .fields.push(
+    f("noteType", "笔记性质", "select", false, ["知识笔记", "辅助解释"]),
+  );
+learning.entityTypes.push(
+  t(
+    "checklist-item",
+    "学习清单",
+    f("due", "计划完成时间"),
+    f("focus", "关注点"),
+  ),
+  t(
+    "check-in",
+    "打卡记录",
+    f("outcome", "打卡结果", "select", true, ["完成", "撤销"]),
+    f("note", "说明"),
+  ),
+  t(
+    "reminder",
+    "应用内提醒",
+    f("remindAt", "提醒时间", "text", true),
+    f("channel", "提醒方式", "select", true, ["应用内"]),
+  ),
+  t(
+    "expression",
+    "思考与表达",
+    f("mode", "练习方式", "select", true, ["文字", "口头文字记录"]),
+    f("structure", "观点理由依据 JSON"),
+    f("revisedText", "整理后文字"),
+  ),
+);
+const languages = builtins.find((m) => m.id === "languages")!;
+languages.version = "0.2.0";
+languages.schemaVersion = 2;
+for (const type of languages.entityTypes) {
+  const language = type.fields.find((f) => f.key === "language");
+  if (language) language.options = ["英语", "日语", "法语"];
+}
+languages.entityTypes
+  .find((t) => t.id === "practice")!
+  .fields.find((f) => f.key === "skill")!.options = ["读", "写", "听", "说"];
+languages.entityTypes
+  .find((t) => t.id === "revision")!
+  .fields.push(
+    f("term", "词语"),
+    f("meaning", "释义"),
+    f("context", "上下文"),
+    f("reference", "来源"),
+  );
 export function validateModule(m: Module) {
   if (m?.contract) validateContract(m);
   if (
