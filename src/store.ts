@@ -15,7 +15,16 @@ import { join, resolve, dirname, relative, isAbsolute } from "node:path";
 import { Ajv } from "ajv";
 import { builtins, validateModule, fieldsSchema } from "./modules.js";
 import { Vault, hash, splitNote } from "./vault.js";
+import {
+  normalizedScope,
+  entityAllowed,
+  permitScopedWrite,
+  projectEntity,
+  assertFullSnapshotScope,
+  syncEntityAllowed,
+} from "./permissions.js";
 import { mergeSnapshots } from "./merge.js";
+import { validateSyncMetadata } from "./sync.js";
 import {
   HUMAN,
   type Module,
@@ -27,6 +36,7 @@ import {
   type Operation,
   type SyncPacket,
   type Conflict,
+  type SyncScope,
 } from "./types.js";
 const ajv = new Ajv({ allErrors: true, strict: true });
 const json = JSON.stringify;
@@ -330,9 +340,22 @@ export class Store {
     const r = this.raw(id);
     if (!r) return null;
     this.permit(cap, "read", r.module);
+    if (!entityAllowed(r, cap.scope))
+      throw Error("Permission denied: entity scope");
     const s = this.snapshot(id)!;
     const { markdown, ...data } = s;
-    return { ...data, noteHash: hash(markdown) };
+    return projectEntity(
+      { ...data, noteHash: hash(markdown) },
+      cap.scope?.[r.module],
+      (targetId) => {
+        const target = this.raw(targetId);
+        return (
+          !!target &&
+          (cap.read.includes("*") || cap.read.includes(target.module)) &&
+          entityAllowed(target, cap.scope)
+        );
+      },
+    );
   }
   list(
     filter: { module?: string; q?: string; includeDeleted?: boolean } = {},
@@ -347,11 +370,23 @@ export class Store {
           (!filter.module || r.module === filter.module) &&
           (cap.read.includes("*") || cap.read.includes(String(r.module))),
       )
+      .filter((r) => entityAllowed(this.raw(String(r.id))!, cap.scope))
       .map((r) => this.get(String(r.id), cap)!)
       .filter(
         (r) =>
           (filter.includeDeleted || !r.deleted) &&
-          (!filter.q || json(r).toLowerCase().includes(filter.q.toLowerCase())),
+          (!filter.q ||
+            [
+              r.title,
+              r.body,
+              r.type,
+              r.status,
+              r.occurredAt,
+              ...Object.values(r.fields),
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(filter.q.toLowerCase())),
       );
   }
   validate(
@@ -488,6 +523,7 @@ export class Store {
     const input = req.entity,
       id = input.id ?? uuid(),
       base = this.snapshot(id);
+    permitScopedWrite({ ...input, id }, base, cap);
     this.permit(cap, cap.role === "ai" ? "suggest" : "write", input.module);
     if (
       cap.role === "ai" &&
@@ -564,12 +600,30 @@ export class Store {
       if (prior.digest !== digest)
         throw Error("Operation ID reused with different content");
       this.permit(cap, "read", this.raw(String(prior.entity))!.module);
+      if (!entityAllowed(this.raw(String(prior.entity))!, cap.scope))
+        throw Error("Permission denied: entity scope");
       return String(prior.entity);
     }
     const { value, base } = this.build(req, cap);
-    for (const rel of value.relations) {
+    const changedRelations = [
+      ...value.relations,
+      ...(base?.relations ?? []),
+    ].filter(
+      (rel) =>
+        value.relations.some(
+          (r) => r.type === rel.type && r.target === rel.target,
+        ) !==
+        (base?.relations.some(
+          (r) => r.type === rel.type && r.target === rel.target,
+        ) ?? false),
+    );
+    for (const rel of changedRelations) {
       const target = this.raw(rel.target);
-      if (target) this.permit(cap, "read", target.module);
+      if (target) {
+        this.permit(cap, "read", target.module);
+        if (!entityAllowed(target, cap.scope))
+          throw Error("Permission denied: relation target");
+      }
     }
     const seq = Number(
       this.db
@@ -606,6 +660,34 @@ export class Store {
       requests.map((req) => this.saveInTransaction(req, cap)),
     );
     return ids.map((id) => this.get(id, cap)!);
+  }
+  patchFields(
+    id: string,
+    fields: Entity["fields"],
+    expectedVersion: number,
+    cap = HUMAN,
+  ) {
+    const current = this.get(id, cap);
+    if (!current) throw Error("Unknown entity");
+    this.permit(cap, "write", current.module);
+    const scope = cap.scope?.[current.module];
+    if (
+      !fields ||
+      typeof fields !== "object" ||
+      Array.isArray(fields) ||
+      (scope?.fields &&
+        Object.keys(fields).some((k) => !scope.fields!.includes(k)))
+    )
+      throw Error("Permission denied: field patch");
+    const full = this.snapshot(id)!;
+    return this.save(
+      {
+        entity: { ...full, fields: { ...full.fields, ...fields } },
+        expectedVersion,
+        expectedNoteHash: hash(full.markdown),
+      },
+      cap,
+    );
   }
   rememberSourceOperation(op: Operation) {
     const src = op.value.source;
@@ -757,7 +839,9 @@ export class Store {
     });
     return changed.length;
   }
-  exportPacket(cursor = 0, modules: string[] = []): SyncPacket {
+  exportPacket(cursor = 0, grant: string[] | SyncScope = []): SyncPacket {
+    const scope = normalizedScope(grant),
+      modules = scope.modules;
     this.captureExternalNotes();
     if (!Number.isSafeInteger(cursor) || cursor < 0)
       throw Error("Invalid cursor");
@@ -768,20 +852,22 @@ export class Store {
       .all(cursor);
     const operations = rows
       .map((r) => parse<Operation>(r)!)
-      .filter(
-        (o) => modules.includes(o.value.module) && o.value.module !== "family",
-      );
-    for (const op of operations)
+      .filter((o) => syncEntityAllowed(o.value, scope));
+    for (const op of operations) {
+      for (const snapshot of [op.base, op.value])
+        if (snapshot) assertFullSnapshotScope(snapshot, scope);
       for (const snapshot of [op.base, op.value])
         for (const r of snapshot?.relations ?? []) {
           const target = this.raw(r.target);
           if (
             !target ||
             target.module === "family" ||
-            !modules.includes(target.module)
+            !modules.includes(target.module) ||
+            !entityAllowed(target, scope.entities)
           )
             throw Error("Sync relation outside authorized modules");
         }
+    }
     const payload = {
       protocol: 1 as const,
       batchId: uuid(),
@@ -793,7 +879,9 @@ export class Store {
     };
     return { ...payload, sha256: hash(json(payload)) };
   }
-  importPacket(packet: SyncPacket, allowed: string[]) {
+  importPacket(packet: SyncPacket, grant: string[] | SyncScope) {
+    const scope = normalizedScope(grant),
+      allowed = scope.modules;
     this.captureExternalNotes();
     const { sha256, ...payload } = packet;
     if (
@@ -822,6 +910,8 @@ export class Store {
     const result = this.transaction(() => {
       for (const op of packet.operations) {
         validateOperationShape(op);
+        for (const snapshot of [op.base, op.value])
+          if (snapshot) assertFullSnapshotScope(snapshot, scope);
         if (
           !validId(op.id) ||
           !validId(op.device) ||
@@ -839,13 +929,29 @@ export class Store {
             if (
               !target ||
               target.module === "family" ||
-              !allowed.includes(target.module)
+              !allowed.includes(target.module) ||
+              !entityAllowed(target, scope.entities)
             )
               throw Error("Sync relation outside authorized modules");
           }
         const known = parse<Operation>(
           this.db.prepare("SELECT json FROM operations WHERE id=?").get(op.id),
         );
+        const baselineSeen = this.db
+          .prepare("SELECT value FROM meta WHERE key=?")
+          .get("sync-seen:" + op.id);
+        if (baselineSeen) {
+          const receipt = JSON.parse(String(baselineSeen.value)) as {
+            entityId: string;
+            digest: string;
+          };
+          if (
+            receipt.entityId !== op.entityId ||
+            receipt.digest !== hash(json(canonical(op)))
+          )
+            throw Error("Sync operation ID reused with different content");
+          continue;
+        }
         if (known) {
           const sourceReplay = sourceOperationIds(op.value.source).includes(
             op.id,
@@ -1129,6 +1235,8 @@ export class Store {
             throw Error("Backup module identity mismatch");
         }
         const expectedEdges: string[] = [];
+        for (const row of store.db.prepare("SELECT key,value FROM meta").all())
+          validateSyncMetadata(String(row.key), String(row.value), entityIds);
         for (const row of store.db
           .prepare("SELECT id,module FROM entities")
           .all()) {
@@ -1238,6 +1346,13 @@ export class Store {
             !Number.isFinite(Date.parse(String(row.at)))
           )
             throw Error("Invalid backup module migration");
+        for (const module of store.modules())
+          if (module.contract) {
+            module.enabled = false;
+            store.db
+              .prepare("UPDATE modules SET json=? WHERE id=?")
+              .run(json(module), module.id);
+          }
         store.device = uuid();
         store.db
           .prepare("INSERT OR REPLACE INTO meta VALUES('device',?)")

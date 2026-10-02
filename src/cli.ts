@@ -12,6 +12,19 @@ import {
   type Purpose,
 } from "./sealed.js";
 import type { SyncPacket } from "./types.js";
+import { PluginManager } from "./plugins.js";
+import { projectRoot } from "./paths.js";
+import {
+  exportBootstrap,
+  importBootstrap,
+  exportProjection,
+  importProjection,
+  listProjections,
+} from "./sync.js";
+import { normalizedScope } from "./permissions.js";
+import type { SyncBootstrap, SyncProjection } from "./types.js";
+import { importResearchResult } from "./research.js";
+import { importAppleHealthXml } from "./apple-health.js";
 import { seedDemo } from "./domain.js";
 const [command, ...args] = process.argv.slice(2);
 const root = resolve(process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"));
@@ -60,8 +73,120 @@ if (command === "keygen") {
 } else {
   outsideRepository(root);
   const s = new Store(root, { skipNoteRecovery: command === "recover-note" });
+  const syncGrant = () => {
+    const config = JSON.parse(readFileSync(join(root, "config.json"), "utf8"));
+    return config.syncScope ?? config.syncModules ?? [];
+  };
   try {
     switch (command) {
+      case "plugins": {
+        const manager = new PluginManager(s, { repositoryRoot: projectRoot });
+        const [action, idOrPath, ...rest] = args;
+        switch (action) {
+          case "list":
+            console.log(manager.list());
+            break;
+          case "install":
+            console.log(manager.install(idOrPath));
+            break;
+          case "upgrade":
+            console.log(manager.upgrade(idOrPath));
+            break;
+          case "authorize":
+            console.log(
+              manager.authorize(
+                idOrPath,
+                rest[0] ? JSON.parse(readFileSync(rest[0], "utf8")) : {},
+              ),
+            );
+            break;
+          case "enable":
+          case "disable":
+          case "uninstall":
+            console.log(manager[action](idOrPath));
+            break;
+          case "invoke":
+            console.log(
+              await manager.invoke(
+                idOrPath,
+                rest[0],
+                rest[1] ? JSON.parse(readFileSync(rest[1], "utf8")) : {},
+              ),
+            );
+            break;
+          case "import":
+            console.log(
+              await manager.import(
+                idOrPath,
+                rest[0],
+                readFileSync(rest[1], "utf8"),
+              ),
+            );
+            break;
+          default:
+            throw Error(
+              "plugins list|install PATH|upgrade PATH|authorize ID [JSON_FILE]|enable ID|disable ID|uninstall ID|invoke ID OP [JSON_FILE]|import ID IMPORTER FILE",
+            );
+        }
+        break;
+      }
+      case "import-research":
+        console.log(
+          importResearchResult(s, JSON.parse(readFileSync(args[0], "utf8"))).id,
+        );
+        break;
+      case "import-apple-health": {
+        if (!args[0] || !args[1])
+          throw Error(
+            "import-apple-health XML_FILE IANA_TIMEZONE [LOCAL_SOURCE_ID]",
+          );
+        const report = importAppleHealthXml(s, readFileSync(args[0], "utf8"), {
+          timeZone: args[1],
+          sourceId: args[2],
+        });
+        console.log({
+          imported: report.imported.length,
+          skipped: report.skipped,
+          errors: report.errors,
+        });
+        break;
+      }
+      case "export-bootstrap":
+      case "export-bootstrap-encrypted":
+        output(args[0], exportBootstrap(s, syncGrant()), "sync");
+        break;
+      case "import-bootstrap":
+      case "import-bootstrap-encrypted":
+        console.log(
+          importBootstrap(
+            s,
+            readInput<SyncBootstrap>(args[0], "sync"),
+            syncGrant(),
+            { acceptManifests: args[1] === "--accept-manifests" },
+          ),
+        );
+        break;
+      case "export-projection":
+      case "export-projection-encrypted":
+        output(
+          args[0],
+          exportProjection(s, normalizedScope(syncGrant())),
+          "sync",
+        );
+        break;
+      case "import-projection":
+      case "import-projection-encrypted":
+        console.log(
+          importProjection(
+            s,
+            readInput<SyncProjection>(args[0], "sync"),
+            normalizedScope(syncGrant()),
+          ),
+        );
+        break;
+      case "projections":
+        console.log(listProjections(s));
+        break;
       case "recover-note":
         if (!["external", "pending"].includes(args[1]))
           throw Error("recover-note ID external|pending");
@@ -107,7 +232,10 @@ if (command === "keygen") {
         );
         output(
           args[0],
-          s.exportPacket(Number(args[1] ?? 0), config.syncModules ?? []),
+          s.exportPacket(
+            Number(args[1] ?? 0),
+            config.syncScope ?? config.syncModules ?? [],
+          ),
           "sync",
         );
         console.log("Local simulation packet exported");
@@ -121,14 +249,14 @@ if (command === "keygen") {
         console.log(
           s.importPacket(
             readInput<SyncPacket>(args[0], "sync"),
-            config.syncModules ?? [],
+            config.syncScope ?? config.syncModules ?? [],
           ),
         );
         break;
       }
       default:
         console.log(
-          "Commands: demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
+          "Commands: demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE, export-bootstrap FILE, import-bootstrap FILE [--accept-manifests], export-projection FILE, import-projection FILE, projections, plugins ACTION, import-research FILE, import-apple-health XML TIMEZONE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
         );
     }
   } finally {

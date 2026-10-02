@@ -5,6 +5,36 @@ import { resolve, join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readdirSync, readFileSync, mkdirSync } from "node:fs";
 import { outsideRepository, projectRoot } from "./paths.js";
+import {
+  exportBootstrap,
+  importBootstrap,
+  exportProjection,
+  importProjection,
+  listProjections,
+} from "./sync.js";
+import { normalizedScope } from "./permissions.js";
+import { financeReport, healthReport } from "./analytics.js";
+import {
+  allocatePeriod,
+  acceptPeriodPlan,
+  periodReview,
+  type PeriodPlanInput,
+  type PeriodPlanDraft,
+} from "./period-planner.js";
+import {
+  importResearchResult,
+  compareExperiments,
+  type ResearchResult,
+} from "./research.js";
+import {
+  importAppleHealthXml,
+  type AppleHealthOptions,
+} from "./apple-health.js";
+import {
+  PluginManager,
+  PLUGIN_RUNTIME_LIMITATIONS,
+  type PluginAuthorization,
+} from "./plugins.js";
 import { Store } from "./store.js";
 import { importHealth, type HealthExport } from "./importers.js";
 import { allocate } from "./planner.js";
@@ -17,6 +47,10 @@ import type {
   SyncPacket,
   EntityInput,
   Capability,
+  EntityScope,
+  SyncScope,
+  SyncBootstrap,
+  SyncProjection,
 } from "./types.js";
 const token = () => randomBytes(32).toString("hex");
 const equal = (a: string, b: string) => {
@@ -30,10 +64,14 @@ export function app(
     agentToken?: string;
     agentModules?: string[];
     syncModules?: string[];
+    syncScope?: SyncScope;
+    agentScope?: Record<string, EntityScope>;
     assets?: string;
   } = {},
 ) {
   const a = Fastify({ logger: false, bodyLimit: 2_000_000 });
+  const plugins = new PluginManager(store, { repositoryRoot: projectRoot });
+  const syncGrant = options.syncScope ?? options.syncModules ?? [];
   const sessions = new Map<string, { csrf: string; expires: number }>();
   const origins = [
     "http://127.0.0.1:4310",
@@ -144,6 +182,79 @@ export function app(
   a.get<{ Querystring: { module?: string } }>("/api/summary", (req) =>
     summary(store.list(req.query)),
   );
+  a.get<{ Querystring: { quoteCurrency?: string; asOf?: string } }>(
+    "/api/reports/finance",
+    (req) => financeReport(store.list(), req.query),
+  );
+  a.get("/api/reports/health", () => healthReport(store.list()));
+  a.get<{ Querystring: { from?: string; to?: string; module?: string } }>(
+    "/api/reports/review",
+    (req) => {
+      const { from, to, module } = req.query;
+      for (const date of [from, to])
+        if (
+          date &&
+          (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+            !Number.isFinite(Date.parse(date)))
+        )
+          throw Error("Invalid review date");
+      return periodReview(
+        store
+          .list()
+          .filter(
+            (e) =>
+              (e.kind !== "plan" || !module || e.module === module) &&
+              (!from || e.occurredAt.slice(0, 10) >= from) &&
+              (!to || e.occurredAt.slice(0, 10) <= to),
+          ),
+      );
+    },
+  );
+  a.post<{ Body: PeriodPlanInput }>("/api/plan/period", (req) =>
+    allocatePeriod(req.body),
+  );
+  a.post<{ Body: { draft: PeriodPlanDraft } }>(
+    "/api/plan/period/accept",
+    (req) => acceptPeriodPlan(store, req.body.draft),
+  );
+  a.post<{ Body: ResearchResult }>("/api/import/research", (req) =>
+    importResearchResult(store, req.body),
+  );
+  a.get<{ Querystring: { ids: string } }>("/api/research/compare", (req) =>
+    compareExperiments(store.list(), (req.query.ids ?? "").split(",")),
+  );
+  a.post<{ Body: AppleHealthOptions & { xml: string } }>(
+    "/api/import/apple-health",
+    (req) => importAppleHealthXml(store, req.body.xml, req.body),
+  );
+  a.get("/api/plugins", () => ({
+    plugins: plugins.list(),
+    limitations: PLUGIN_RUNTIME_LIMITATIONS,
+  }));
+  a.post<{ Body: { path: string } }>("/api/plugins/install", (req) =>
+    plugins.install(req.body.path),
+  );
+  a.post<{ Body: { path: string } }>("/api/plugins/upgrade", (req) =>
+    plugins.upgrade(req.body.path),
+  );
+  a.post<{ Params: { id: string }; Body: PluginAuthorization }>(
+    "/api/plugins/:id/authorize",
+    (req) => plugins.authorize(req.params.id, req.body),
+  );
+  for (const action of ["enable", "disable", "uninstall"] as const)
+    a.post<{ Params: { id: string } }>("/api/plugins/:id/" + action, (req) =>
+      plugins[action](req.params.id),
+    );
+  a.post<{
+    Params: { id: string; operation: string };
+    Body: { input: unknown };
+  }>("/api/plugins/:id/invoke/:operation", (req) =>
+    plugins.invoke(req.params.id, req.params.operation, req.body.input),
+  );
+  a.post<{ Params: { id: string; importer: string }; Body: { text: string } }>(
+    "/api/plugins/:id/import/:importer",
+    (req) => plugins.import(req.params.id, req.params.importer, req.body.text),
+  );
   a.post("/api/demo", () => seedDemo(store));
   a.post<{ Body: PlanInput }>("/api/plan", (req) => allocate(req.body));
   a.post<{ Body: { draft: PlanDraft } }>("/api/plan/accept", (req) =>
@@ -166,14 +277,26 @@ export function app(
   );
   a.get("/api/audit", () => store.audit());
   a.get<{ Querystring: { cursor?: string } }>("/api/sync/export", (req) =>
-    store.exportPacket(
-      Number(req.query.cursor ?? 0),
-      options.syncModules ?? [],
-    ),
+    store.exportPacket(Number(req.query.cursor ?? 0), syncGrant),
   );
   a.post<{ Body: { packet: SyncPacket } }>("/api/sync/import", (req) =>
-    store.importPacket(req.body.packet, options.syncModules ?? []),
+    store.importPacket(req.body.packet, syncGrant),
   );
+  a.get("/api/sync/bootstrap", () => exportBootstrap(store, syncGrant));
+  a.post<{ Body: { packet: SyncBootstrap; acceptManifests?: boolean } }>(
+    "/api/sync/bootstrap",
+    (req) =>
+      importBootstrap(store, req.body.packet, syncGrant, {
+        acceptManifests: req.body.acceptManifests === true,
+      }),
+  );
+  a.get("/api/sync/projection", () =>
+    exportProjection(store, normalizedScope(syncGrant)),
+  );
+  a.post<{ Body: { packet: SyncProjection } }>("/api/sync/projection", (req) =>
+    importProjection(store, req.body.packet, normalizedScope(syncGrant)),
+  );
+  a.get("/api/sync/projections", () => listProjections(store));
   a.post<{ Body: { entity: EntityInput } }>("/api/import/source", (req) =>
     store.importSource(req.body.entity),
   );
@@ -183,6 +306,7 @@ export function app(
     read: options.agentModules ?? [],
     write: [],
     suggest: options.agentModules ?? [],
+    scope: options.agentScope,
   };
   a.get("/api/agent/entities", (req) => {
     if (
@@ -203,7 +327,7 @@ export function app(
   a.get("/api/status", () => ({
     mode: "仅本机 · 数据默认仓库外",
     sync: "本地双副本模拟；未接通云供应商",
-    syncModules: options.syncModules ?? [],
+    syncModules: normalizedScope(syncGrant).modules,
     watch: "未联动：需要获准的 iPhone 桥接；可手动记录",
     trading: "无实盘、支付或转账接口",
     ai: "默认无账户连接；规则建议需人工采纳",
@@ -262,6 +386,8 @@ if (isMain) {
     agentToken: config.agentToken,
     agentModules: config.agentModules,
     syncModules: config.syncModules,
+    syncScope: config.syncScope,
+    agentScope: config.agentScope,
     assets: join(project, "web-dist"),
   });
   await a.listen({ host: "127.0.0.1", port: 4310 });

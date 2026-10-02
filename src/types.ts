@@ -23,6 +23,7 @@ export type Module = {
     max?: number;
   }[];
   views: ("list" | "timeline" | "form")[];
+  contract?: import("./module-contract.js").ModuleContract;
 };
 export type Source = {
   namespace: string;
@@ -77,6 +78,63 @@ export type Capability = {
   read: string[];
   write: string[];
   suggest: string[];
+  scope?: Record<string, EntityScope>;
+};
+export type EntityScope = {
+  entityIds?: string[];
+  entityTypes?: string[];
+  fields?: string[];
+  body?: boolean;
+  relations?: boolean;
+  metadata?: (
+    | "title"
+    | "source"
+    | "actor"
+    | "createdAt"
+    | "updatedAt"
+    | "occurredAt"
+    | "timeZone"
+  )[];
+};
+export type SyncScope = {
+  modules: string[];
+  entities?: Record<string, EntityScope>;
+};
+export type SyncBootstrap = {
+  protocol: 2;
+  mode: "bootstrap";
+  batchId: string;
+  device: string;
+  cursor: number;
+  scope: SyncScope;
+  modules: Module[];
+  records: Snapshot[];
+  seen: { id: string; entityId: string; digest: string }[];
+  sourceReceipts: {
+    namespace: string;
+    source_id: string;
+    revision: string;
+    entity: string;
+    digest: string;
+  }[];
+  imports: {
+    namespace: string;
+    source_id: string;
+    revision: string;
+    entity: string;
+    digest: string;
+  }[];
+  sha256: string;
+};
+export type SyncProjection = {
+  protocol: 2;
+  mode: "projection";
+  batchId: string;
+  device: string;
+  cursor: number;
+  scope: SyncScope;
+  records: Entity[];
+  sha256: string;
 };
 export const HUMAN: Capability = {
   actor: "local-user",

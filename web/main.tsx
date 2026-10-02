@@ -11,6 +11,14 @@ import type {
   SaveRequest,
 } from "../src/types.js";
 import "./styles.css";
+import {
+  FinancePanel,
+  HealthPanel,
+  ResearchPanel,
+} from "./SpecialistPanels.js";
+import { PeriodPlanner, ReviewPanel } from "./PeriodPlanner.js";
+import { SyncTools } from "./SyncTools.js";
+import { PluginTools } from "./PluginTools.js";
 
 type Page = "home" | "module" | "planner" | "settings";
 type Summary = {
@@ -143,10 +151,12 @@ function App() {
       request<Entity[]>("/api/entities?includeDeleted=1", undefined, token),
       request<Conflict[]>("/api/conflicts", undefined, token),
       request<Record<string, unknown>>("/api/status", undefined, token),
+      request<Module[]>("/api/modules", undefined, token),
     ]);
     setEntities(results[0]);
     setConflicts(results[1]);
     setStatus(results[2]);
+    setModules(results[3].filter((module) => module.enabled));
   }
   useEffect(() => {
     let cancelled = false;
@@ -294,6 +304,19 @@ function App() {
         ? activeModule
         : (modules.find((item) => item.id === "planning") ?? modules[0]);
     if (module) setEditor({ module });
+  };
+  const specialistProps = {
+    request,
+    run: action,
+    busy,
+    entities,
+    onImported: refresh,
+    onOpen: (id: string) => {
+      const entity = entities.find((item) => item.id === id);
+      const module = modules.find((item) => item.id === entity?.module);
+      if (entity && module) setEditor({ module, entity });
+      else setError(`来源记录不可用：${id}`);
+    },
   };
   return (
     <div className="app-shell">
@@ -566,248 +589,275 @@ function App() {
                 </>
               )}
               {(page === "home" || page === "module") && (
-                <section className="records-section">
-                  <div className="section-heading">
-                    <div>
-                      <h2>{page === "home" ? "最近的生活记录" : "领域记录"}</h2>
-                      {page === "module" && (
-                        <p>
-                          {activeModule?.entityTypes.length ?? 0} 种记录类型 ·
-                          模块 v{activeModule?.version}
-                        </p>
-                      )}
-                    </div>
-                    {page === "module" &&
-                      activeModule?.entityTypes.some(
-                        (type) => type.id === "review",
-                      ) && (
-                        <button
-                          className="button"
-                          onClick={() =>
-                            setEditor({ module: activeModule, review: true })
-                          }
-                        >
-                          ↺ 写一份回顾
-                        </button>
-                      )}
-                  </div>
-                  {page === "module" && summary && (
-                    <div className="module-summary">
-                      {(["plan", "fact", "inference"] as const).map((kind) => (
-                        <div key={kind}>
-                          <span className={`kind-dot ${kind}`} />
-                          {kinds[kind]}
-                          <strong>{summary.counts[kind]}</strong>
-                        </div>
-                      ))}
-                      {Object.entries(summary.minutesByLanguage ?? {}).map(
-                        ([language, minutes]) => (
-                          <div key={language} className="language-total">
-                            {language} · 实际练习<strong>{minutes}</strong>分钟
-                          </div>
-                        ),
-                      )}
-                      {summary.finance?.map((item, index) => (
-                        <div key={index} className="finance-total">
-                          {item.category} · {item.currency}
-                          <strong>{item.total}</strong>
-                        </div>
-                      ))}
-                    </div>
+                <>
+                  {page === "module" && moduleId === "finance" && (
+                    <FinancePanel {...specialistProps} />
                   )}
-                  <div className="records-toolbar">
-                    <div
-                      className="filter-tabs"
-                      role="group"
-                      aria-label="记录性质筛选"
-                    >
-                      {(["all", "plan", "fact", "inference"] as const).map(
-                        (kind) => (
+                  {page === "module" && moduleId === "health" && (
+                    <HealthPanel {...specialistProps} />
+                  )}
+                  {page === "module" &&
+                    ["quant", "projects"].includes(moduleId) && (
+                      <ResearchPanel
+                        key={moduleId}
+                        {...specialistProps}
+                        moduleId={moduleId}
+                      />
+                    )}
+                  {page === "module" && moduleId === "planning" && (
+                    <ReviewPanel {...specialistProps} />
+                  )}
+                  <section className="records-section">
+                    <div className="section-heading">
+                      <div>
+                        <h2>
+                          {page === "home" ? "最近的生活记录" : "领域记录"}
+                        </h2>
+                        {page === "module" && (
+                          <p>
+                            {activeModule?.entityTypes.length ?? 0} 种记录类型 ·
+                            模块 v{activeModule?.version}
+                          </p>
+                        )}
+                      </div>
+                      {page === "module" &&
+                        activeModule?.entityTypes.some(
+                          (type) => type.id === "review",
+                        ) && (
                           <button
-                            key={kind}
-                            className={filter === kind ? "active" : ""}
-                            onClick={() => setFilter(kind)}
+                            className="button"
+                            onClick={() =>
+                              setEditor({ module: activeModule, review: true })
+                            }
                           >
-                            {kind === "all" ? "全部" : kinds[kind]}
+                            ↺ 写一份回顾
                           </button>
-                        ),
-                      )}
+                        )}
                     </div>
-                    <div className="record-tools">
-                      <label className="search-box">
-                        <span aria-hidden="true">⌕</span>
-                        <input
-                          aria-label="搜索记录"
-                          placeholder="搜索标题、笔记或字段…"
-                          value={query}
-                          onChange={(event) => setQuery(event.target.value)}
-                        />
-                      </label>
-                      <div className="view-toggle" aria-label="切换视图">
-                        <button
-                          aria-label="列表视图"
-                          aria-pressed={view === "list"}
-                          className={view === "list" ? "active" : ""}
-                          onClick={() => setView("list")}
-                        >
-                          ▤
-                        </button>
-                        <button
-                          aria-label="时间线视图"
-                          aria-pressed={view === "timeline"}
-                          className={view === "timeline" ? "active" : ""}
-                          onClick={() => setView("timeline")}
-                        >
-                          ◷
-                        </button>
+                    {page === "module" && summary && (
+                      <div className="module-summary">
+                        {(["plan", "fact", "inference"] as const).map(
+                          (kind) => (
+                            <div key={kind}>
+                              <span className={`kind-dot ${kind}`} />
+                              {kinds[kind]}
+                              <strong>{summary.counts[kind]}</strong>
+                            </div>
+                          ),
+                        )}
+                        {Object.entries(summary.minutesByLanguage ?? {}).map(
+                          ([language, minutes]) => (
+                            <div key={language} className="language-total">
+                              {language} · 实际练习<strong>{minutes}</strong>
+                              分钟
+                            </div>
+                          ),
+                        )}
+                        {summary.finance?.map((item, index) => (
+                          <div key={index} className="finance-total">
+                            {item.category} · {item.currency}
+                            <strong>{item.total}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="records-toolbar">
+                      <div
+                        className="filter-tabs"
+                        role="group"
+                        aria-label="记录性质筛选"
+                      >
+                        {(["all", "plan", "fact", "inference"] as const).map(
+                          (kind) => (
+                            <button
+                              key={kind}
+                              className={filter === kind ? "active" : ""}
+                              onClick={() => setFilter(kind)}
+                            >
+                              {kind === "all" ? "全部" : kinds[kind]}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                      <div className="record-tools">
+                        <label className="search-box">
+                          <span aria-hidden="true">⌕</span>
+                          <input
+                            aria-label="搜索记录"
+                            placeholder="搜索标题、笔记或字段…"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                          />
+                        </label>
+                        <div className="view-toggle" aria-label="切换视图">
+                          <button
+                            aria-label="列表视图"
+                            aria-pressed={view === "list"}
+                            className={view === "list" ? "active" : ""}
+                            onClick={() => setView("list")}
+                          >
+                            ▤
+                          </button>
+                          <button
+                            aria-label="时间线视图"
+                            aria-pressed={view === "timeline"}
+                            className={view === "timeline" ? "active" : ""}
+                            onClick={() => setView("timeline")}
+                          >
+                            ◷
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {page === "module" && activeModule && (
-                    <div className="comparison-toggle">
-                      <button
-                        className="text-button"
-                        aria-expanded={showComparison}
-                        onClick={() => setShowComparison(!showComparison)}
-                      >
-                        {showComparison ? "收起比较" : "⇄ 比较两条记录"}
-                      </button>
-                      <span>计划与实际、不同实验，都可以并排核对。</span>
-                    </div>
-                  )}
-                  {page === "module" && activeModule && showComparison && (
-                    <Comparison
-                      key={activeModule.id}
-                      module={activeModule}
-                      entities={entities.filter(
-                        (entity) =>
-                          entity.module === moduleId && !entity.deleted,
-                      )}
-                    />
-                  )}
-                  <div className="records-caption">
-                    <span>
-                      {visible.length} 条{query ? "匹配的" : ""}记录
-                    </span>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={includeDeleted}
-                        onChange={(event) =>
-                          setIncludeDeleted(event.target.checked)
-                        }
-                      />{" "}
-                      显示回收站
-                    </label>
-                  </div>
-                  {!visible.length ? (
-                    <div className="empty-state compact">
-                      <span className="empty-symbol">▤</span>
-                      <h3>
-                        {query ? "还没有匹配的记录" : "给这个空间写下第一笔"}
-                      </h3>
-                      <p>
-                        {query
-                          ? "试试其他关键词，或调整筛选条件。"
-                          : "可以写一个计划、记录一次实践，或留下今天的回顾。"}
-                      </p>
-                      {!query && (
-                        <button className="button" onClick={newEntity}>
-                          ＋ 新建记录
+                    {page === "module" && activeModule && (
+                      <div className="comparison-toggle">
+                        <button
+                          className="text-button"
+                          aria-expanded={showComparison}
+                          onClick={() => setShowComparison(!showComparison)}
+                        >
+                          {showComparison ? "收起比较" : "⇄ 比较两条记录"}
                         </button>
-                      )}
+                        <span>计划与实际、不同实验，都可以并排核对。</span>
+                      </div>
+                    )}
+                    {page === "module" && activeModule && showComparison && (
+                      <Comparison
+                        key={activeModule.id}
+                        module={activeModule}
+                        entities={entities.filter(
+                          (entity) =>
+                            entity.module === moduleId && !entity.deleted,
+                        )}
+                      />
+                    )}
+                    <div className="records-caption">
+                      <span>
+                        {visible.length} 条{query ? "匹配的" : ""}记录
+                      </span>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={includeDeleted}
+                          onChange={(event) =>
+                            setIncludeDeleted(event.target.checked)
+                          }
+                        />{" "}
+                        显示回收站
+                      </label>
                     </div>
-                  ) : (
-                    <div
-                      className={`record-list ${view === "timeline" ? "timeline" : ""}`}
-                    >
-                      {visible.map((entity) => {
-                        const module = modules.find(
-                          (item) => item.id === entity.module,
-                        );
-                        return (
-                          <article
-                            className={`record-row ${entity.deleted ? "deleted" : ""}`}
-                            key={entity.id}
-                          >
-                            {view === "timeline" && (
-                              <div className="timeline-date">
-                                {shortDate(entity.occurredAt)}
-                              </div>
-                            )}
-                            <button
-                              className="record-main"
-                              onClick={() =>
-                                module && setEditor({ module, entity })
-                              }
+                    {!visible.length ? (
+                      <div className="empty-state compact">
+                        <span className="empty-symbol">▤</span>
+                        <h3>
+                          {query ? "还没有匹配的记录" : "给这个空间写下第一笔"}
+                        </h3>
+                        <p>
+                          {query
+                            ? "试试其他关键词，或调整筛选条件。"
+                            : "可以写一个计划、记录一次实践，或留下今天的回顾。"}
+                        </p>
+                        {!query && (
+                          <button className="button" onClick={newEntity}>
+                            ＋ 新建记录
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        className={`record-list ${view === "timeline" ? "timeline" : ""}`}
+                      >
+                        {visible.map((entity) => {
+                          const module = modules.find(
+                            (item) => item.id === entity.module,
+                          );
+                          return (
+                            <article
+                              className={`record-row ${entity.deleted ? "deleted" : ""}`}
+                              key={entity.id}
                             >
-                              <span
-                                className={`record-type-icon ${entity.kind}`}
-                              >
-                                {entity.type === "review"
-                                  ? "↺"
-                                  : (symbols[entity.module] ?? "◇")}
-                              </span>
-                              <div className="record-text">
-                                <div className="record-title">
-                                  <h3>{entity.title}</h3>
-                                  {entity.deleted && (
-                                    <span className="deleted-label">
-                                      回收站
-                                    </span>
-                                  )}
+                              {view === "timeline" && (
+                                <div className="timeline-date">
+                                  {shortDate(entity.occurredAt)}
                                 </div>
-                                <p>
-                                  {module?.name} <span>·</span>{" "}
-                                  {module?.entityTypes.find(
-                                    (type) => type.id === entity.type,
-                                  )?.name ?? entity.type}{" "}
-                                  {entity.body && (
-                                    <>
-                                      <span>·</span>{" "}
-                                      {entity.body
-                                        .slice(0, 66)
-                                        .replace(/\n/g, " ")}
-                                    </>
-                                  )}
-                                </p>
-                              </div>
-                              <span className={`kind-badge ${entity.kind}`}>
-                                {kinds[entity.kind]}
-                              </span>
-                              <span
-                                className={`status-label status-${entity.status}`}
-                              >
-                                {statuses[entity.status]}
-                              </span>
-                              {view === "list" && (
-                                <time>{shortDate(entity.occurredAt)}</time>
                               )}
-                              <span className="row-arrow">›</span>
-                            </button>
-                            {entity.deleted && (
                               <button
-                                disabled={busy}
-                                className="text-button restore-button"
-                                onClick={() => void toggleDeleted(entity)}
+                                className="record-main"
+                                onClick={() =>
+                                  module && setEditor({ module, entity })
+                                }
                               >
-                                恢复
+                                <span
+                                  className={`record-type-icon ${entity.kind}`}
+                                >
+                                  {entity.type === "review"
+                                    ? "↺"
+                                    : (symbols[entity.module] ?? "◇")}
+                                </span>
+                                <div className="record-text">
+                                  <div className="record-title">
+                                    <h3>{entity.title}</h3>
+                                    {entity.deleted && (
+                                      <span className="deleted-label">
+                                        回收站
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p>
+                                    {module?.name} <span>·</span>{" "}
+                                    {module?.entityTypes.find(
+                                      (type) => type.id === entity.type,
+                                    )?.name ?? entity.type}{" "}
+                                    {entity.body && (
+                                      <>
+                                        <span>·</span>{" "}
+                                        {entity.body
+                                          .slice(0, 66)
+                                          .replace(/\n/g, " ")}
+                                      </>
+                                    )}
+                                  </p>
+                                </div>
+                                <span className={`kind-badge ${entity.kind}`}>
+                                  {kinds[entity.kind]}
+                                </span>
+                                <span
+                                  className={`status-label status-${entity.status}`}
+                                >
+                                  {statuses[entity.status]}
+                                </span>
+                                {view === "list" && (
+                                  <time>{shortDate(entity.occurredAt)}</time>
+                                )}
+                                <span className="row-arrow">›</span>
                               </button>
-                            )}
-                          </article>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
+                              {entity.deleted && (
+                                <button
+                                  disabled={busy}
+                                  className="text-button restore-button"
+                                  onClick={() => void toggleDeleted(entity)}
+                                >
+                                  恢复
+                                </button>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                </>
               )}
               {page === "planner" && (
-                <Planner
-                  busy={busy}
-                  request={request}
-                  run={action}
-                  onAccepted={refresh}
-                />
+                <>
+                  <Planner
+                    busy={busy}
+                    request={request}
+                    run={action}
+                    onAccepted={refresh}
+                  />
+                  <PeriodPlanner {...specialistProps} />
+                </>
               )}
               {page === "settings" && (
                 <>
@@ -947,6 +997,8 @@ function App() {
                       </div>
                     </section>
                   </div>
+                  <SyncTools {...specialistProps} />
+                  <PluginTools {...specialistProps} />
                   <section className="panel conflict-panel">
                     <div className="section-heading">
                       <div>

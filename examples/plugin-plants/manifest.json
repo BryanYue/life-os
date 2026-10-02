@@ -1,0 +1,116 @@
+{
+  "protocol": 1,
+  "entry": "plugin.mjs",
+  "module": {
+    "id": "demo.plugin-plants",
+    "name": "Fictional plugin plants",
+    "version": "1.0.0",
+    "coreApi": 1,
+    "schemaVersion": 1,
+    "codeVisibility": "public",
+    "enabled": false,
+    "entityTypes": [
+      {
+        "id": "plant",
+        "name": "Plant",
+        "fields": [
+          {
+            "key": "nickname",
+            "label": "Fictional nickname",
+            "type": "text",
+            "required": true
+          },
+          { "key": "waterMl", "label": "Water millilitres", "type": "number" },
+          {
+            "key": "privateNote",
+            "label": "Fictional hidden field",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "relations": [],
+    "views": ["list", "timeline", "form"],
+    "contract": {
+      "protocol": 1,
+      "core": {
+        "api": 1,
+        "minVersion": "0.1.0",
+        "maxVersionExclusive": "0.2.0"
+      },
+      "permissions": [
+        {
+          "id": "read-plants",
+          "action": "read",
+          "module": "demo.plugin-plants",
+          "entityTypes": ["plant"],
+          "fields": ["nickname", "waterMl"]
+        },
+        {
+          "id": "suggest-plants",
+          "action": "suggest",
+          "module": "demo.plugin-plants",
+          "entityTypes": ["plant"],
+          "fields": ["nickname", "waterMl"]
+        },
+        {
+          "id": "write-plants",
+          "action": "write",
+          "module": "demo.plugin-plants",
+          "entityTypes": ["plant"],
+          "fields": ["nickname", "waterMl"]
+        },
+        {
+          "id": "external-plants",
+          "action": "external",
+          "module": "demo.plugin-plants"
+        }
+      ],
+      "operations": [
+        { "id": "list", "handler": "list", "permissions": ["read-plants"] },
+        { "id": "patch", "handler": "patch", "permissions": ["write-plants"] },
+        {
+          "id": "suggest",
+          "handler": "suggest",
+          "permissions": ["suggest-plants"]
+        },
+        { "id": "write", "handler": "write", "permissions": ["write-plants"] },
+        {
+          "id": "external",
+          "handler": "external",
+          "permissions": ["external-plants"]
+        },
+        {
+          "id": "summarize",
+          "handler": "stdio",
+          "permissions": ["read-plants"]
+        },
+        {
+          "id": "propose",
+          "handler": "stdio",
+          "permissions": ["suggest-plants"]
+        },
+        {
+          "id": "broker-probe",
+          "handler": "stdio",
+          "permissions": [
+            "read-plants",
+            "suggest-plants",
+            "write-plants",
+            "external-plants"
+          ]
+        },
+        {
+          "id": "runtime-probe",
+          "handler": "stdio",
+          "permissions": ["read-plants"]
+        }
+      ],
+      "importers": [
+        { "id": "draft-json", "operation": "suggest", "format": "json" }
+      ],
+      "dependencies": [],
+      "migrations": []
+    }
+  }
+}

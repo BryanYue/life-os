@@ -1,3 +1,4 @@
+import { validateContract } from "./module-contract.js";
 import type { Field, EntityType, Module } from "./types.js";
 export type { Module, Field } from "./types.js";
 const f = (
@@ -210,6 +211,7 @@ export const builtins: Module[] = [
   ]),
 ];
 export function validateModule(m: Module) {
+  if (m?.contract) validateContract(m);
   if (
     !m ||
     !/^([a-z][a-z0-9-]*\.)*[a-z][a-z0-9-]{1,40}$/.test(m.id) ||
