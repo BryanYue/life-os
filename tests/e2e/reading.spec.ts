@@ -394,13 +394,62 @@ test("旧schema必须检查并明确迁移，两模块升级保留原文与备�
   }
 });
 
+for (const scenario of [
+  {
+    name: "纽约当地前一日",
+    timeZone: "America/New_York",
+    instant: "2026-10-03T01:01:00Z",
+  },
+  {
+    name: "上海当地次日",
+    timeZone: "Asia/Shanghai",
+    instant: "2026-10-03T16:01:00Z",
+  },
+]) {
+  test.describe("建议 UTC 日期边界 · " + scenario.name, () => {
+    test.use({ timezoneId: scenario.timeZone });
+    test("默认参考日期包含当前UTC日目标，排除下一UTC日目标", async ({
+      page,
+    }) => {
+      await page.clock.setFixedTime(new Date(scenario.instant));
+      await openLearning(page);
+      const current = await seed(page, {
+        title: "虚构UTC当前目标 · " + scenario.name,
+        occurredAt: scenario.instant,
+      });
+      const dayEnd = await seed(page, {
+        title: "虚构UTC日末目标 · " + scenario.name,
+        occurredAt: "2026-10-03T23:59:59.999Z",
+      });
+      const nextDay = await seed(page, {
+        title: "虚构UTC次日目标 · " + scenario.name,
+        occurredAt: "2026-10-04T00:00:00Z",
+      });
+      await openLearning(page);
+      await page.getByRole("tab", { name: "依据与建议", exact: true }).click();
+      await expect(
+        page.getByLabel("建议参考日期（UTC 日末）", { exact: true }),
+      ).toHaveValue("2026-10-03");
+      const cards = page.locator(".learning-workspace .advice-card");
+      await expect(cards.filter({ hasText: current.title })).toHaveCount(1);
+      await expect(cards.filter({ hasText: dayEnd.title })).toHaveCount(1);
+      await expect(cards.filter({ hasText: nextDay.title })).toHaveCount(0);
+    });
+  });
+}
+
 test.describe("可选时间的夏令时安全", () => {
   test.use({ timezoneId: "America/New_York" });
   test("建议采纳遇到不存在或重复钟点必须明确修正，不能降级为未填写", async ({
     page,
   }) => {
+    const instant = "2026-10-03T01:01:00Z";
+    await page.clock.setFixedTime(new Date(instant));
     await openLearning(page);
-    const goal = await seed(page, { title: "虚构纽约夏令时目标" });
+    const goal = await seed(page, {
+      title: "虚构纽约夏令时目标",
+      occurredAt: instant,
+    });
     await openLearning(page);
     await page.getByRole("tab", { name: "依据与建议", exact: true }).click();
     const card = page

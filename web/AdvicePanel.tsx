@@ -129,10 +129,8 @@ export function AdvicePanel(props: ReadingUiProps) {
   const ready =
     (props.modules.find((module) => module.id === "learning")?.schemaVersion ??
       0) >= 2;
-  const [asOf, setAsOf] = useState(() => {
-    const date = new Date();
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  });
+  // The advice API interprets this reference date as the end of a UTC day.
+  const [asOf, setAsOf] = useState(() => new Date().toISOString().slice(0, 10));
   const [report, setReport] = useState<AdviceReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

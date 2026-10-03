@@ -78,3 +78,70 @@
 - 不创建新 bundle；旧包 `c513c613` 不含当前功能。开源许可证仍未决定，公开可见不等于许可证授权。
 
 未修改正式需求/验收语义。当前规则只在项目落实，没有更改账户全局设置或宣称文档会切换实际模型。
+
+## 2026-10-03 Mac 原生迁移验收（最新本机结果）
+
+本节为本次 Mac 实测，前文 Linux 结果及“Mac 未实测”记录保留作历史。迁移负责人为本机任务主代理；未接手云端功能开发，未修改产品源码或测试判据。
+
+### 来源与本机安装
+
+- 目标：`$WORKSPACE/life-os`。恢复前目标不存在；没有覆盖既有项目或私人数据。
+- 来源：个人 Library 的最新安全迁移包，version 0，406531 bytes；准确文件身份保留在仓库外本机迁移证据中。
+- 迁移 ZIP SHA256：`db299da32b2efc458bc8e4f30cc10914e16240fcdafc069bf49e7eb6494bac17`。本机下载文件已核对大小、SHA256、Library ID/version 扩展属性；解包前检查相对路径与符号链接。
+- 包内校验全部通过；从 bundle 恢复分支 `feat/local-life-os`。HEAD `5f1ff295801dc5e3eb3e6422a6b90cdcff931230`，实现提交 `74d50358a97f40d7f45fa4a9b5f4d1b1d4eb1cfa`，8 个提交、91 个文件逐一核对大小/SHA256，Git tree `9396baa68aaec94d21d90ba72571c519a100a187`，`git fsck --full` 通过，恢复后初始工作树干净。
+- macOS 26.6.2 / arm64；专用 Node 24.19.0 / npm 11.17.0。Node 来自官方发行归档，ARM64 tar.gz SHA256 `8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d` 与官方清单一致。
+- 专用运行时及日志：`$WORKSPACE/life-os-local-ops`。未替换全局 Node 26，未修改账号、token、SSH、全局设置或 GitHub 远程。
+- `npm ci`：199 packages，审计 0 vulnerabilities，锁文件未修改。安装脚本提示按原样保留在日志，未执行全局 approve-scripts。
+
+### 实际结果
+
+| 检查 | 本次结果 |
+| --- | --- |
+| 默认 Mac 临时目录下 check | lint/typecheck 通过；168/174 测试通过，6 项 stdio 插件失败；因串行 check 终止，此轮未构建 |
+| 指定专用真实路径 TMPDIR 后 check | lint/typecheck、174/174 单元/集成/CLI、生产构建全部通过，0 skipped |
+| Mac Chrome 154.0.8037.93 全量 E2E | **26/27 通过，1 项失败**；未改断言、未跳过场景、未将旧云端 27/27 当作本机结果 |
+| 生产 HTTP 服务 | 编译产物启动，127.0.0.1:4310，静态页面与 8 模块可用 |
+| 综合阅读 | 两目标共用一次 30 分钟；重试返回同一记录；解释/词汇不增加时长，原文不变 |
+| 清单与提醒 | 完成/重复操作/撤销、到期提醒/延后/确认通过；应用内提醒，不是系统推送 |
+| 建议与表达 | 建议读取零写入，明确采纳及重试仅生成同一计划；表达原稿保留、整理稿和依据回链可读，反馈仍为推断；全部动作后总阅读仍为 30 分钟 |
+| 真实生产进程重启 | SIGTERM 完整退出后同数据根重新启动；28 条虚构记录全部 ID/version/body/relations 及阅读、提醒、表达报告深度相等 |
+| 编译 CLI 加密备份与隔离恢复 | 生成仅用于虚构数据的独立本机测试密钥，错误密钥拒绝且不发布恢复目录；正确恢复保留同一 28 条记录和全部快照，status.restoredIsolated=true |
+| 启停入口 | 停止本任务拥有进程、再次启动、重复启动复用同一 PID 通过；没有开机启动项 |
+| UI 目视 | Codex 本机内置浏览器实际打开“本地服务已连接”、28 条记录、8 模块；阅读页显示一次总计30分钟、两个目标各覆盖30分钟；正式E2E桌面/390px截图已查看 |
+
+生产验收数据均明确为虚构。原演示目录 `$WORKSPACE/life-os-demo-20261003`；隔离恢复目录 `$WORKSPACE/life-os-restored-20261003`。没有读取默认私人 `~/.life-os` 或接真实健康、金融账户。
+
+### 两项本机发现与边界
+
+1. **Mac 临时路径兼容限制，已用运行配置解决本次启动。** 原源码 plugins.ts:815 使用 tmpdir()，随后仅允许读取复制的入口文件。Mac 默认 `/var/...` 经过 `/var -> /private/var` 别名，Node 24 权限加载入口时报 ERR_ACCESS_DENIED，resource=/var。相同文件改用真实 `/private/var/...` 路径的最小复现通过。专用启动器及全部复验设置 `TMPDIR=$WORKSPACE/life-os-local-ops/tmp`（0700、无符号链接）；保留 --permission 和精确入口文件白名单，未放宽任何插件权限。默认 Mac 临时路径仍是原源码兼容边界，不能直接用全局 Node 26 的普通 npm start 代替专用入口。
+
+2. **建议默认日期的时区问题仍未修复。** 失败位置 tests/e2e/reading.spec.ts:409，尚未进入其 DST 输入断言。2026-10-03T01:01Z 时纽约本地为 Oct2；web/AdvicePanel.tsx:132 用浏览器本地日期初始化“UTC 日末”参考日期，src/advice.ts:88/150 则按 Oct2 23:59:59.999Z 过滤，新建 Oct3 UTC 目标被排除，卡片为0。独立调用原编译 generateAdvice 复现：参考Oct2无该目标，Oct3有该目标。属于跨平台日期不一致，测试依赖实时钟而显现，不是已证实的 DST 校验逻辑错误。临时方法：展开“建议范围与参考日期”，选当前 UTC 日期，再点“按参考日期查看建议”。本次保持云端源码基线，交回唯一功能开发者修复；未缩小测试范围冒充全绿。
+
+Safari、真实 iPhone/Watch 硬件未测试；390px 是本机 Chrome 视口模拟。真实云连接器未实现，Watch 自动连接仍延期；GitHub 推送身份阻塞保持独立处理。数据库/Vault 明文、可选导出加密和无系统通知等已有边界不变。
+
+### 可打开入口与证据
+
+- 页面：http://127.0.0.1:4310 。本轮结束时保留本任务启动的回环服务；当前 PID 以 `life-os-local-ops/server.pid` 为准。
+- 双击 `$WORKSPACE/life-os-local-ops/Start Life OS.command` 启动/打开；双击同目录 `Stop Life OS.command` 只停止命令行匹配的本任务进程，数据保留。
+- 日志：`life-os-local-ops/npm-ci.log`、`check.log`（首轮失败）、`check-mac.log`、`e2e-mac.log`、`production-smoke.log`、`server.log`。
+- 结构化结果与前后快照：`life-os-local-ops/acceptance/result.json`、`before-restart.json`、`after-restart.json`、`after-restore.json`、`cli-results.json`。
+- 截图/失败上下文：`acceptance/life-reading-desktop.png`、`life-reading-mobile-shanghai.png`、`e2e-failed-ny-advice.png`、`e2e-failed-ny-advice-context.md`。
+- 本次只追加本地验收文档和项目进度；产品源码/测试/锁文件与导入基线一致，未提交、推送、合并或公开部署。原云任务保留。
+
+## 2026-10-03 建议 UTC 默认日期修复与最终 Mac 验收
+
+本节为最新结果，取代前一轮“26/27、建议默认日期待修复”的当前状态；保留该轮失败记录作对照。
+
+- 授权与基线：用户继续授权本机最小修复、回归与本地提交。恢复前核对 HEAD 5f1ff29；仅两份上轮任务自有文档改动，逐字比对确认没有覆盖后续用户改动。唯一代码写入者为本机主代理，云端未启动并发 writer。
+- 变更：AdvicePanel 的默认参考日期使用 `new Date().toISOString().slice(0, 10)`，与现有“UTC 日末”标签和服务端契约一致；不改变手动参考日期、建议规则、后端筛选或 DST 时间转换。
+- 新增两项真实浏览器回归：纽约当地前一日、上海当地次日。固定浏览器时钟并显式设置虚构目标时间，验证默认 UTC 日期、当日当前目标和 23:59:59.999Z 目标可见、下一日 00:00:00Z 目标排除。
+- 原纽约 DST 场景保留 gap/fold 提示、原输入保留、未选偏移零写入、选择 -05:00 后保存及 America/New_York 的全部断言，只固定时钟和种子时间消除实时日期漂移。
+- 修复前对照：上述两个新场景及原 DST 场景 **3/3 失败**。纽约实际日期错误为 Oct2，上海为 Oct4；原 DST 卡片为0。没有改变判据来迁就实现。
+- 修复后完整 `npm run check`：lint、typecheck、**174/174** 单元/集成/CLI、生产构建全部通过，0 skipped。
+- 修复后完整 `npm run test:e2e`：Mac Chrome **29/29 通过**，包含原27项、新2项UTC边界及原失败纽约DST场景；不是仅跑定向场景。独立只读审查无阻断发现。
+- 数据保护：测试前停止本任务拥有的演示服务；所有测试使用独立临时虚构数据库。原数据目录29个文件在测试前后SHA256完全一致；随后恢复同一目录，生产入口 HTTP200。没有用原数据执行测试写入。
+- 证据目录：`$WORKSPACE/life-os-local-ops/advice-date-fix-20261003/` 中的 `baseline-regression.log`、`check.log`、`e2e.log`、`data-unchanged.json`、原始失败截图。提交SHA由同目录 `result.json` 和 Git 历史记录。
+- 本机入口仍为 http://127.0.0.1:4310 ，启停脚本和专用 Node24/TMPDIR 配置沿用前节。原源码的Mac默认符号链接临时目录限制未扩展修复，必须继续使用本机专用入口。
+- 本次范围无已知未修验收阻断。Safari/真实手机未验收；真实云连接器未实现，Watch自动连接延期；无远程写入、凭据/全局设置变更或公网部署。
+
+为便于后续通用源码流转，仓库内文档的机器路径使用 `$WORKSPACE` 占位，个人 Library 标识保留在仓库外迁移证据，完整本机原始记录亦保留在本次证据目录；未删除实际迁移输入或数据。
