@@ -6,7 +6,9 @@ const failures = [];
 const scan = (name, data) => {
   if (
     /\.(sqlite(?:-wal|-shm)?|db|p12|pfx|pem|key|bundle|zip)$/i.test(name) ||
-    /(^|\/)(\.env(?:\.|$)|config\.json$|vault\/|backups\/)/.test(name)
+    /(^|\/)(\.env(?:\.|$)|(?:config|personal-profile|plugin-state|templates|workspace-copy)\.json$|vault\/|backups\/)/.test(
+      name,
+    )
   )
     failures.push(name + ": private file type/path");
   const text = data.toString("utf8");

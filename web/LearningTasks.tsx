@@ -76,6 +76,7 @@ function ReminderCard({
 }
 export function LearningTasks(props: ReadingUiProps) {
   const ready =
+    !!props.modules.find((module) => module.id === "learning")?.enabled &&
     (props.modules.find((module) => module.id === "learning")?.schemaVersion ??
       0) >= 2;
   const [report, setReport] = useState<LearningTasksReport | null>(null);
@@ -200,7 +201,14 @@ export function LearningTasks(props: ReadingUiProps) {
           </p>
         </div>
       </div>
-      {!ready ? (
+      {!props.modules.find((module) => module.id === "learning")?.enabled ? (
+        <p className="form-help">
+          清单与提醒需启用阅读学习模块。历史记录完整保留。
+          <button className="text-button" onClick={props.onSettings}>
+            选择阅读学习模块
+          </button>
+        </p>
+      ) : !ready ? (
         <BuiltinUpgradePrompt {...props} requiredModules={["learning"]} />
       ) : (
         <>

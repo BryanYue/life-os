@@ -291,6 +291,28 @@ languages.entityTypes
     f("context", "上下文"),
     f("reference", "来源"),
   );
+// Schema 3 is opt-in. Existing installations keep their exact manifests until
+// an explicit migration widens the language fields without rewriting values.
+export function withLanguageCodes(current: Module): Module {
+  if (
+    !["learning", "languages"].includes(current.id) ||
+    current.schemaVersion !== 2
+  )
+    throw Error("Language codes require an explicit schema 2 to 3 upgrade");
+  const next = structuredClone(current);
+  next.schemaVersion = 3;
+  if (next.version === "0.2.0") next.version = "0.3.0";
+  for (const type of next.entityTypes)
+    for (const field of type.fields)
+      if (field.key === "language" && field.type === "select") {
+        field.type = "text";
+        delete field.options;
+      }
+  return next;
+}
+export const languageBuiltins = builtins
+  .filter((module) => ["learning", "languages"].includes(module.id))
+  .map(withLanguageCodes);
 export function validateModule(m: Module) {
   if (m?.contract) validateContract(m);
   if (

@@ -126,7 +126,11 @@ function AdviceCard({
   );
 }
 export function AdvicePanel(props: ReadingUiProps) {
+  const learningEnabled = !!props.modules.find(
+    (module) => module.id === "learning",
+  )?.enabled;
   const ready =
+    learningEnabled &&
     (props.modules.find((module) => module.id === "learning")?.schemaVersion ??
       0) >= 2;
   // The advice API interprets this reference date as the end of a UTC day.
@@ -176,7 +180,7 @@ export function AdvicePanel(props: ReadingUiProps) {
         </div>
         <button
           className="button"
-          disabled={loading}
+          disabled={loading || !ready}
           onClick={() => {
             setHidden(new Set());
             void load();
@@ -185,7 +189,14 @@ export function AdvicePanel(props: ReadingUiProps) {
           刷新本地建议
         </button>
       </div>
-      {!ready ? (
+      {!learningEnabled ? (
+        <p className="form-help">
+          阅读学习模块已停用。历史目标与事实仍保留，启用后可继续查看并明确采纳建议。
+          <button className="text-button" onClick={props.onSettings}>
+            选择阅读学习模块
+          </button>
+        </p>
+      ) : !ready ? (
         <BuiltinUpgradePrompt {...props} requiredModules={["learning"]} />
       ) : (
         <>

@@ -5,3 +5,9 @@ web-dist/
 .env*
 *.log
 coverage/
+/personal-profile.json
+/plugin-state.json
+/templates.json
+/workspace-copy.json
+/vault/
+/archive/

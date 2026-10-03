@@ -23,6 +23,16 @@ import { LearningTasks } from "./LearningTasks.js";
 import { AdvicePanel } from "./AdvicePanel.js";
 import { ExpressionStudio } from "./ExpressionStudio.js";
 import { PluginTools } from "./PluginTools.js";
+import { PersonalizationSettings } from "./PersonalizationSettings.js";
+import { TemplateChooser } from "./TemplateChooser.js";
+import { LanguageSelect, languageNeedsUpgrade } from "./LanguageControls.js";
+import type {
+  CategoryRegistry,
+  LanguageSettings,
+  PersonalProfile,
+  ProfilePatch,
+} from "./PersonalizationTypes.js";
+import { languageLabel, type LanguageDefinition } from "../src/languages.js";
 
 type Page = "home" | "module" | "planner" | "settings";
 type Summary = {
@@ -97,6 +107,16 @@ const entityInput = (entity: Entity): EntityInput => ({
 function App() {
   const [csrf, setCsrf] = useState("");
   const [modules, setModules] = useState<Module[]>([]);
+  const [profile, setProfile] = useState<PersonalProfile | null>(null);
+  const [registry, setRegistry] = useState<CategoryRegistry>({
+    categories: [],
+    unassignedModuleIds: [],
+  });
+  const [languages, setLanguages] = useState<LanguageSettings>({
+    catalog: [],
+    pending: [],
+  });
+  const [categoryId, setCategoryId] = useState("");
   const [entities, setEntities] = useState<Entity[]>([]);
   const [page, setPage] = useState<Page>("home");
   const [moduleId, setModuleId] = useState("");
@@ -122,6 +142,14 @@ function App() {
   const [learningView, setLearningView] = useState("reading");
   const [mobileNav, setMobileNav] = useState(false);
   const activeModule = modules.find((module) => module.id === moduleId);
+  const enabledModules = modules.filter((module) => module.enabled);
+  const includeDisabled = profile?.history.includeDisabled ?? false;
+  const accessibleModules = modules.filter(
+    (module) => module.enabled || includeDisabled,
+  );
+  const activeCategory = registry.categories.find(
+    (category) => category.id === categoryId,
+  );
   async function request<T>(
     path: string,
     body?: unknown,
@@ -159,11 +187,17 @@ function App() {
       request<Conflict[]>("/api/conflicts", undefined, token),
       request<Record<string, unknown>>("/api/status", undefined, token),
       request<Module[]>("/api/modules", undefined, token),
+      request<PersonalProfile>("/api/profile", undefined, token),
+      request<CategoryRegistry>("/api/categories", undefined, token),
+      request<LanguageSettings>("/api/languages", undefined, token),
     ]);
     setEntities(results[0]);
     setConflicts(results[1]);
     setStatus(results[2]);
-    setModules(results[3].filter((module) => module.enabled));
+    setModules(results[3]);
+    setProfile(results[4]);
+    setRegistry(results[5]);
+    setLanguages(results[6]);
   }
   useEffect(() => {
     let cancelled = false;
@@ -177,7 +211,7 @@ function App() {
         );
         if (cancelled) return;
         setCsrf(session.csrf);
-        setModules(listed.filter((module) => module.enabled));
+        setModules(listed);
         setModuleId(listed.find((module) => module.enabled)?.id ?? "");
         await refresh(session.csrf);
         if (!cancelled) setReady(true);
@@ -193,7 +227,7 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     setSummary(null);
-    if (!ready || !moduleId) return;
+    if (!ready || !moduleId || !activeModule?.enabled) return;
     request<Summary>(`/api/summary?module=${encodeURIComponent(moduleId)}`)
       .then((value) => {
         if (!cancelled) setSummary(value);
@@ -205,7 +239,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [moduleId, entities, ready]);
+  }, [moduleId, entities, ready, activeModule?.enabled]);
   async function action(work: () => Promise<void>, message?: string) {
     setBusy(true);
     setError("");
@@ -221,11 +255,46 @@ function App() {
   }
   function navigate(next: Page, id?: string) {
     setPage(next);
-    if (id) setModuleId(id);
+    if (id) {
+      setModuleId(id);
+      setCategoryId(
+        registry.categories.find((category) => category.moduleIds.includes(id))
+          ?.id ?? "",
+      );
+    }
     setQuery("");
     setFilter("all");
     setShowComparison(false);
     setMobileNav(false);
+  }
+  function navigateCategory(id: string) {
+    const category = registry.categories.find((item) => item.id === id);
+    const categoryModules = modules.filter((module) =>
+      category?.moduleIds.includes(module.id),
+    );
+    const module =
+      categoryModules.find((item) => item.enabled) ??
+      (includeDisabled ? categoryModules[0] : undefined);
+    navigate("module", module?.id);
+    setModuleId(module?.id ?? "");
+    setCategoryId(id);
+  }
+  async function saveProfile(
+    patch: ProfilePatch,
+    expectedRevision = profile?.revision,
+  ) {
+    if (expectedRevision === undefined)
+      throw Error("个人设置尚未读取，请刷新后重试。");
+    const saved = await request<PersonalProfile>("/api/profile", {
+      patch,
+      expectedRevision,
+    });
+    setProfile(saved);
+    await refresh();
+  }
+  async function browseHistory() {
+    await saveProfile({ history: { includeDisabled: true } });
+    navigate("home");
   }
   async function save(input: EntityInput, existing?: Entity) {
     const payload: SaveRequest = {
@@ -271,7 +340,11 @@ function App() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, "导出文件已准备好。请妥善保管包含本地记录的文件。");
   }
-  const live = entities.filter((entity) => !entity.deleted);
+  const live = entities.filter(
+    (entity) =>
+      !entity.deleted &&
+      accessibleModules.some((module) => module.id === entity.module),
+  );
   const counts = {
     plan: live.filter((entity) => entity.kind === "plan").length,
     fact: live.filter((entity) => entity.kind === "fact").length,
@@ -281,7 +354,8 @@ function App() {
     .filter(
       (entity) =>
         (includeDeleted || !entity.deleted) &&
-        (page !== "module" || entity.module === moduleId) &&
+        accessibleModules.some((module) => module.id === entity.module) &&
+        (page !== "module" || (!!moduleId && entity.module === moduleId)) &&
         (filter === "all" || entity.kind === filter) &&
         (!query ||
           `${entity.title} ${entity.body} ${Object.values(entity.fields).join(" ")} ${modules.find((module) => module.id === entity.module)?.name ?? ""}`
@@ -296,7 +370,7 @@ function App() {
         ? "为生活留出余量"
         : page === "settings"
           ? "本地数据与设置"
-          : (activeModule?.name ?? "模块");
+          : (activeModule?.name ?? activeCategory?.label ?? "分类");
   const pageSubtitle =
     page === "home"
       ? "把重要的事放在一起，让每一天更有方向。"
@@ -309,8 +383,9 @@ function App() {
     const module =
       page === "module"
         ? activeModule
-        : (modules.find((item) => item.id === "planning") ?? modules[0]);
-    if (module) setEditor({ module });
+        : (enabledModules.find((item) => item.id === "planning") ??
+          enabledModules[0]);
+    if (module?.enabled) setEditor({ module });
   };
   const specialistProps = {
     request,
@@ -328,10 +403,13 @@ function App() {
   const readingProps = {
     ...specialistProps,
     modules,
+    profile,
+    languageCatalog: languages.catalog,
+    onSettings: () => navigate("settings"),
     onShowTasks: () => setLearningView("tasks"),
     onCreateGoal: (id: string) => {
       const module = modules.find((item) => item.id === id);
-      if (module)
+      if (module?.enabled)
         setEditor({
           module,
           initialType: id === "languages" ? "language-goal" : "goal",
@@ -376,23 +454,72 @@ function App() {
           <span>◷</span>时间规划<span className="nav-tag">本地规则</span>
         </button>
         <div className="sidebar-section-label domain-label">
-          生活领域 <span>{modules.length}</span>
+          通用分类 <span>{registry.categories.length}</span>
         </div>
-        <nav>
-          {modules.map((module) => (
-            <button
-              key={module.id}
-              aria-label={module.name}
-              className={`nav-button ${page === "module" && moduleId === module.id ? "selected" : ""}`}
-              onClick={() => navigate("module", module.id)}
-            >
-              <span className="module-symbol">{symbols[module.id] ?? "◇"}</span>
-              {module.name}
-              <span className="nav-count">
-                {live.filter((entity) => entity.module === module.id).length}
-              </span>
-            </button>
-          ))}
+        <nav className="category-navigation" aria-label="通用分类导航">
+          {registry.categories.map((category) => {
+            const categoryModules = modules.filter(
+              (module) =>
+                category.moduleIds.includes(module.id) && module.enabled,
+            );
+            return (
+              <div
+                className="category-nav-group"
+                key={category.id}
+                data-category-id={category.id}
+              >
+                <button
+                  aria-label={category.label}
+                  className={`nav-button ${page === "module" && categoryId === category.id ? "selected" : ""}`}
+                  onClick={() => navigateCategory(category.id)}
+                >
+                  <span className="module-symbol">
+                    {symbols[category.moduleIds[0]] ?? "◇"}
+                  </span>
+                  {category.label}
+                  <span className="nav-count">
+                    {
+                      live.filter((entity) =>
+                        category.moduleIds.includes(entity.module),
+                      ).length
+                    }
+                  </span>
+                </button>
+                {categoryModules
+                  .filter((module) => module.name !== category.label)
+                  .map((module) => (
+                    <button
+                      key={module.id}
+                      aria-label={module.name}
+                      className={`nav-button module-subnav ${page === "module" && moduleId === module.id ? "selected" : ""}`}
+                      onClick={() => navigate("module", module.id)}
+                    >
+                      {module.name}
+                    </button>
+                  ))}
+              </div>
+            );
+          })}
+          {registry.unassignedModuleIds
+            .map((id) => modules.find((module) => module.id === id))
+            .filter((module) => module?.enabled)
+            .map(
+              (module) =>
+                module && (
+                  <button
+                    key={module.id}
+                    aria-label={module.name}
+                    className={`nav-button ${page === "module" && moduleId === module.id ? "selected" : ""}`}
+                    onClick={() => navigate("module", module.id)}
+                  >
+                    <span className="module-symbol">
+                      {symbols[module.id] ?? "◇"}
+                    </span>
+                    {module.name}
+                    <span className="nav-tag">未分类</span>
+                  </button>
+                ),
+            )}
         </nav>
         <div className="sidebar-bottom">
           <button
@@ -455,7 +582,12 @@ function App() {
             {page !== "planner" && page !== "settings" && (
               <button
                 className="button primary"
-                disabled={!ready || busy || !modules.length}
+                disabled={
+                  !ready ||
+                  busy ||
+                  !enabledModules.length ||
+                  (page === "module" && !activeModule?.enabled)
+                }
                 onClick={newEntity}
               >
                 <span>＋</span> 新建记录
@@ -564,60 +696,100 @@ function App() {
                   <section className="domains-section">
                     <div className="section-heading">
                       <div>
-                        <h2>
-                          生活的{modules.length === 8 ? "八个" : "各个"}维度
-                        </h2>
-                        <p>从一个小记录开始，慢慢建立自己的系统。</p>
+                        <h2>生活的八个分类</h2>
+                        <p>按自己的选择启用模块，通用分类始终保留。</p>
                       </div>
                       <span className="small-chip">
-                        {modules.length} 个已启用模块
+                        {enabledModules.length} 个已启用模块
                       </span>
                     </div>
                     <div className="domain-grid">
-                      {modules.map((module, index) => (
-                        <button
-                          key={module.id}
-                          className="domain-card"
-                          onClick={() => navigate("module", module.id)}
-                        >
-                          <div className={`domain-icon tone-${index % 4}`}>
-                            {symbols[module.id] ?? "◇"}
-                          </div>
-                          <span className="domain-arrow">↗</span>
-                          <h3>{module.name}</h3>
-                          <p>
-                            {module.entityTypes
-                              .filter((type) => type.id !== "review")
-                              .map((type) => type.name)
-                              .slice(0, 2)
-                              .join(" · ") || "记录与回顾"}
-                          </p>
-                          <footer>
-                            <span>
-                              {
-                                live.filter(
-                                  (entity) => entity.module === module.id,
-                                ).length
-                              }{" "}
-                              条记录
-                            </span>
-                            <span>进入领域 →</span>
-                          </footer>
-                        </button>
-                      ))}
+                      {registry.categories.map((category, index) => {
+                        const categoryModules = modules.filter((module) =>
+                          category.moduleIds.includes(module.id),
+                        );
+                        const active = categoryModules.filter(
+                          (module) => module.enabled,
+                        );
+                        return (
+                          <button
+                            key={category.id}
+                            className="domain-card"
+                            onClick={() => navigateCategory(category.id)}
+                          >
+                            <div className={`domain-icon tone-${index % 4}`}>
+                              {symbols[category.moduleIds[0]] ?? "◇"}
+                            </div>
+                            <span className="domain-arrow">↗</span>
+                            <h3>{category.label}</h3>
+                            <p>
+                              {active.length
+                                ? active
+                                    .map((module) => module.name)
+                                    .join(" · ")
+                                : "尚无启用模块 · 可在设置中选择"}
+                            </p>
+                            <footer>
+                              <span>
+                                {
+                                  live.filter((entity) =>
+                                    category.moduleIds.includes(entity.module),
+                                  ).length
+                                }{" "}
+                                条记录
+                              </span>
+                              <span>
+                                {active.length ? "进入分类 →" : "查看分类 →"}
+                              </span>
+                            </footer>
+                          </button>
+                        );
+                      })}
                     </div>
                   </section>
                 </>
               )}
               {(page === "home" || page === "module") && (
                 <>
-                  {page === "module" && moduleId === "finance" && (
-                    <FinancePanel {...specialistProps} />
-                  )}
-                  {page === "module" && moduleId === "health" && (
-                    <HealthPanel {...specialistProps} />
-                  )}
                   {page === "module" &&
+                    (activeCategory?.moduleIds.length ?? 0) > 1 && (
+                      <label className="form-field category-module-picker">
+                        分类中的模块
+                        <select
+                          aria-label="分类中的模块"
+                          value={moduleId}
+                          onChange={(event) =>
+                            navigate("module", event.target.value)
+                          }
+                        >
+                          <option value="" disabled>
+                            请选择模块
+                          </option>
+                          {accessibleModules
+                            .filter((module) =>
+                              activeCategory?.moduleIds.includes(module.id),
+                            )
+                            .map((module) => (
+                              <option key={module.id} value={module.id}>
+                                {module.name}
+                                {module.enabled ? "" : " · 停用历史"}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    )}
+                  {page === "module" &&
+                    activeModule?.enabled &&
+                    moduleId === "finance" && (
+                      <FinancePanel {...specialistProps} />
+                    )}
+                  {page === "module" &&
+                    activeModule?.enabled &&
+                    moduleId === "health" && (
+                      <HealthPanel {...specialistProps} />
+                    )}
+                  {page === "module" &&
+                    activeModule?.enabled &&
                     ["quant", "projects"].includes(moduleId) && (
                       <ResearchPanel
                         key={moduleId}
@@ -625,11 +797,54 @@ function App() {
                         moduleId={moduleId}
                       />
                     )}
-                  {page === "module" && moduleId === "planning" && (
-                    <ReviewPanel {...specialistProps} />
-                  )}
+                  {page === "module" &&
+                    activeModule?.enabled &&
+                    moduleId === "planning" && (
+                      <ReviewPanel {...specialistProps} />
+                    )}
                   {page === "home" && <AdvicePanel {...readingProps} />}
                   {page === "module" &&
+                    (!activeModule || !activeModule.enabled) && (
+                      <section className="panel disabled-module-panel">
+                        <h2>
+                          {activeModule
+                            ? `${activeModule.name} 已停用`
+                            : `${activeCategory?.label ?? "此分类"} 尚未启用模块`}
+                        </h2>
+                        <p>
+                          历史记录、笔记与关联完整保留。启用模块后可继续新建和编辑。
+                        </p>
+                        <div className="settings-actions">
+                          <button
+                            className="button"
+                            onClick={() => navigate("settings")}
+                          >
+                            选择或启用模块
+                          </button>
+                          {!includeDisabled && (
+                            <button
+                              className="button"
+                              disabled={busy}
+                              onClick={() =>
+                                void action(async () => {
+                                  await saveProfile({
+                                    history: { includeDisabled: true },
+                                  });
+                                  const module = modules.find((item) =>
+                                    activeCategory?.moduleIds.includes(item.id),
+                                  );
+                                  if (module) setModuleId(module.id);
+                                }, "已明确打开停用模块的只读历史。")
+                              }
+                            >
+                              浏览此分类历史
+                            </button>
+                          )}
+                        </div>
+                      </section>
+                    )}
+                  {page === "module" &&
+                    activeModule?.enabled &&
                     ["learning", "languages"].includes(moduleId) && (
                       <div className="learning-workspace">
                         <div
@@ -669,6 +884,34 @@ function App() {
                       </div>
                     )}
                   <section className="records-section">
+                    <div className="history-browse-controls">
+                      <label className="check-field">
+                        <input
+                          type="checkbox"
+                          aria-label="浏览停用模块历史"
+                          checked={includeDisabled}
+                          disabled={busy}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            void action(
+                              () =>
+                                saveProfile({
+                                  history: { includeDisabled: checked },
+                                }),
+                              checked
+                                ? "已显示停用模块的只读历史。"
+                                : "当前浏览已启用模块，历史记录仍保留。",
+                            );
+                          }}
+                        />
+                        <span>浏览停用模块历史</span>
+                      </label>
+                      {includeDisabled && (
+                        <span className="form-help">
+                          停用模块记录只读；编辑前请重新启用。
+                        </span>
+                      )}
+                    </div>
                     <div className="section-heading">
                       <div>
                         <h2>
@@ -682,7 +925,8 @@ function App() {
                         )}
                       </div>
                       {page === "module" &&
-                        activeModule?.entityTypes.some(
+                        activeModule?.enabled &&
+                        activeModule.entityTypes.some(
                           (type) => type.id === "review",
                         ) && (
                           <button
@@ -709,7 +953,8 @@ function App() {
                         {Object.entries(summary.minutesByLanguage ?? {}).map(
                           ([language, minutes]) => (
                             <div key={language} className="language-total">
-                              {language} · 实际练习<strong>{minutes}</strong>
+                              {languageLabel(language, languages.catalog)} ·
+                              实际练习<strong>{minutes}</strong>
                               分钟
                             </div>
                           ),
@@ -818,11 +1063,12 @@ function App() {
                             ? "试试其他关键词，或调整筛选条件。"
                             : "可以写一个计划、记录一次实践，或留下今天的回顾。"}
                         </p>
-                        {!query && (
-                          <button className="button" onClick={newEntity}>
-                            ＋ 新建记录
-                          </button>
-                        )}
+                        {!query &&
+                          (page !== "module" || activeModule?.enabled) && (
+                            <button className="button" onClick={newEntity}>
+                              ＋ 新建记录
+                            </button>
+                          )}
                       </div>
                     ) : (
                       <div
@@ -858,6 +1104,11 @@ function App() {
                                 <div className="record-text">
                                   <div className="record-title">
                                     <h3>{entity.title}</h3>
+                                    {!module?.enabled && (
+                                      <span className="deleted-label">
+                                        停用模块 · 历史
+                                      </span>
+                                    )}
                                     {entity.deleted && (
                                       <span className="deleted-label">
                                         回收站
@@ -894,7 +1145,7 @@ function App() {
                               </button>
                               {entity.deleted && (
                                 <button
-                                  disabled={busy}
+                                  disabled={busy || !module?.enabled}
                                   className="text-button restore-button"
                                   onClick={() => void toggleDeleted(entity)}
                                 >
@@ -922,6 +1173,26 @@ function App() {
               )}
               {page === "settings" && (
                 <>
+                  {profile && (
+                    <PersonalizationSettings
+                      {...specialistProps}
+                      profile={profile}
+                      registry={registry}
+                      languages={languages}
+                      modules={modules}
+                      onSaveProfile={saveProfile}
+                      onBrowseHistory={browseHistory}
+                    />
+                  )}
+                  {profile && (
+                    <TemplateChooser
+                      {...specialistProps}
+                      profile={profile}
+                      modules={modules}
+                      catalog={languages.catalog}
+                      onSaveProfile={saveProfile}
+                    />
+                  )}
                   <div className="settings-grid">
                     <section className="panel">
                       <span className="panel-symbol">⌂</span>
@@ -1185,6 +1456,8 @@ function App() {
           initialStatus={editor.initialStatus}
           review={editor.review}
           entities={entities}
+          languageCatalog={languages.catalog}
+          profile={profile}
           busy={busy}
           onClose={() => setEditor(null)}
           onSave={async (input) => {
@@ -1352,6 +1625,8 @@ function Editor({
   existing,
   review,
   entities,
+  languageCatalog,
+  profile,
   busy,
   onClose,
   onSave,
@@ -1364,6 +1639,8 @@ function Editor({
   existing?: Entity;
   review?: boolean;
   entities: Entity[];
+  languageCatalog: LanguageDefinition[];
+  profile: PersonalProfile | null;
   busy: boolean;
   onClose: () => void;
   onSave: (input: EntityInput) => Promise<void>;
@@ -1390,6 +1667,9 @@ function Editor({
   );
   const [formError, setFormError] = useState("");
   const type = module.entityTypes.find((item) => item.id === input.type);
+  const needsLanguageUpgrade =
+    type?.fields.some((field) => field.key === "language") &&
+    languageNeedsUpgrade(String(input.fields.language ?? ""), module);
   function update<K extends keyof EntityInput>(key: K, value: EntityInput[K]) {
     setInput((previous) => ({ ...previous, [key]: value }));
   }
@@ -1404,6 +1684,13 @@ function Editor({
   function submit(event: React.FormEvent) {
     event.preventDefault();
     setFormError("");
+    if (!module.enabled) return;
+    if (needsLanguageUpgrade) {
+      setFormError(
+        "此语言需要先在个人设置中明确升级当前模块到 Schema 3；已保留表单文本。",
+      );
+      return;
+    }
     if (!input.title.trim()) {
       setFormError("请填写记录标题。");
       return;
@@ -1445,7 +1732,13 @@ function Editor({
           <div>
             <p className="eyebrow">{module.name}</p>
             <h2 id="editor-title">
-              {existing ? "编辑记录" : review ? "写一份回顾" : "新建记录"}
+              {existing
+                ? module.enabled
+                  ? "编辑记录"
+                  : "查看历史记录"
+                : review
+                  ? "写一份回顾"
+                  : "新建记录"}
             </h2>
           </div>
           <button
@@ -1459,266 +1752,290 @@ function Editor({
         </div>
         <form onSubmit={submit}>
           <div className="editor-body">
-            {existing && (
-              <div className="editor-meta">
-                版本 {existing.version} · 类型与性质保持记录身份 · 更新于{" "}
-                {shortDate(existing.updatedAt)}
-                {existing.deleted ? " · 当前在回收站" : ""}
-              </div>
-            )}
-            {formError && (
-              <div className="message error" role="alert">
-                {formError}
-              </div>
-            )}
-            <label className="form-field full">
-              标题
-              <input
-                autoFocus
-                required
-                maxLength={300}
-                placeholder={
-                  review ? "这段时间，我看见了什么？" : "写下你想记录的事…"
-                }
-                value={input.title}
-                onChange={(event) => update("title", event.target.value)}
-              />
-            </label>
-            <div className="form-grid">
-              <label className="form-field">
-                记录类型
-                <select
-                  aria-label="记录类型"
-                  disabled={!!existing}
-                  value={input.type}
-                  onChange={(event) =>
-                    setInput((previous) => ({
-                      ...previous,
-                      type: event.target.value,
-                      fields: {},
-                    }))
-                  }
-                >
-                  {module.entityTypes.map((item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field">
-                记录性质
-                <select
-                  aria-label="记录性质"
-                  disabled={!!existing}
-                  value={input.kind}
-                  onChange={(event) =>
-                    update("kind", event.target.value as Entity["kind"])
-                  }
-                >
-                  {Object.entries(kinds).map(([id, name]) => (
-                    <option value={id} key={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field">
-                状态
-                <select
-                  aria-label="状态"
-                  value={input.status}
-                  onChange={(event) =>
-                    update("status", event.target.value as Entity["status"])
-                  }
-                >
-                  {Object.entries(statuses).map(([id, name]) => (
-                    <option value={id} key={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field">
-                发生时间
-                <input
-                  type="datetime-local"
-                  required
-                  value={localTime(input.occurredAt)}
-                  onChange={(event) => {
-                    if (event.target.value)
-                      update(
-                        "occurredAt",
-                        new Date(event.target.value).toISOString(),
-                      );
-                  }}
-                />
-              </label>
-              <label className="form-field full">
-                记录时区
-                <input
-                  required
-                  value={input.timeZone}
-                  onChange={(event) => update("timeZone", event.target.value)}
-                  placeholder="Asia/Shanghai"
-                />
-              </label>
-            </div>
-            <div className={`kind-explanation ${input.kind}`}>
-              {input.kind === "plan"
-                ? "计划记录想做的事。状态变为已完成后，也需要单独记录实际发生的事实。"
-                : input.kind === "fact"
-                  ? "事实记录实际发生或已观察到的内容，请避免把未经确认的建议写成事实。"
-                  : "推断记录假设、估计或建议，确认之前请保留它的推断性质。"}
-            </div>
-            {type && type.fields.length > 0 && (
-              <>
-                <h3 className="form-section-title">{type.name}详情</h3>
-                <div className="form-grid">
-                  {type.fields.map((field) => (
-                    <label className="form-field" key={field.key}>
-                      {field.label}
-                      {field.required && (
-                        <span className="required-mark"> *</span>
-                      )}
-                      {field.type === "select" ? (
-                        <select
-                          aria-label={field.label}
-                          required={field.required}
-                          value={input.fields[field.key] ?? ""}
-                          onChange={(event) =>
-                            fieldValue(field, event.target.value)
-                          }
-                        >
-                          <option value="">请选择</option>
-                          {field.options?.map((option) => (
-                            <option value={option} key={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          aria-label={field.label}
-                          required={field.required}
-                          type={
-                            field.type === "date"
-                              ? "date"
-                              : field.type === "number"
-                                ? "number"
-                                : "text"
-                          }
-                          inputMode={
-                            field.type === "decimal" ? "decimal" : undefined
-                          }
-                          min={field.min}
-                          step={field.type === "number" ? "any" : undefined}
-                          value={input.fields[field.key] ?? ""}
-                          onChange={(event) =>
-                            fieldValue(field, event.target.value)
-                          }
-                        />
-                      )}
-                    </label>
-                  ))}
+            <fieldset className="editor-fields" disabled={!module.enabled}>
+              {!module.enabled && (
+                <p className="form-help">
+                  模块已停用，历史记录只读。关闭后可在个人设置中重新启用。
+                </p>
+              )}
+              {existing && (
+                <div className="editor-meta">
+                  版本 {existing.version} · 类型与性质保持记录身份 · 更新于{" "}
+                  {shortDate(existing.updatedAt)}
+                  {existing.deleted ? " · 当前在回收站" : ""}
                 </div>
-              </>
-            )}
-            <h3 className="form-section-title">关联记录</h3>
-            {!module.relations.length ? (
-              <p className="form-help">此模块暂未声明可用的关联类型。</p>
-            ) : (
-              module.relations.map((relation) => {
-                const targets = entities.filter(
-                  (entity) =>
-                    !entity.deleted &&
-                    entity.id !== existing?.id &&
-                    (relation.targetModules.includes("*") ||
-                      relation.targetModules.includes(entity.module)),
-                );
-                const selected = input.relations
-                  .filter((item) => item.type === relation.id)
-                  .map((item) => item.target);
-                const missing = selected.filter(
-                  (id) => !targets.some((entity) => entity.id === id),
-                );
-                return (
-                  <label
-                    className="form-field full relation-field"
-                    key={relation.id}
+              )}
+              {formError && (
+                <div className="message error" role="alert">
+                  {formError}
+                </div>
+              )}
+              <label className="form-field full">
+                标题
+                <input
+                  autoFocus
+                  required
+                  maxLength={300}
+                  placeholder={
+                    review ? "这段时间，我看见了什么？" : "写下你想记录的事…"
+                  }
+                  value={input.title}
+                  onChange={(event) => update("title", event.target.value)}
+                />
+              </label>
+              <div className="form-grid">
+                <label className="form-field">
+                  记录类型
+                  <select
+                    aria-label="记录类型"
+                    disabled={!!existing}
+                    value={input.type}
+                    onChange={(event) =>
+                      setInput((previous) => ({
+                        ...previous,
+                        type: event.target.value,
+                        fields: {},
+                      }))
+                    }
                   >
-                    {relation.name}
-                    <select
-                      aria-label={relation.name}
-                      multiple
-                      value={selected}
-                      onChange={(event) => {
-                        const picked = Array.from(
-                          event.target.selectedOptions,
-                        ).map((option) => ({
-                          type: relation.id,
-                          target: option.value,
-                        }));
-                        if (relation.max && picked.length > relation.max) {
-                          setFormError(
-                            `「${relation.name}」最多关联 ${relation.max} 条记录。`,
-                          );
-                          return;
-                        }
-                        update("relations", [
-                          ...input.relations.filter(
-                            (item) => item.type !== relation.id,
-                          ),
-                          ...picked,
-                        ]);
-                      }}
+                    {module.entityTypes.map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  记录性质
+                  <select
+                    aria-label="记录性质"
+                    disabled={!!existing}
+                    value={input.kind}
+                    onChange={(event) =>
+                      update("kind", event.target.value as Entity["kind"])
+                    }
+                  >
+                    {Object.entries(kinds).map(([id, name]) => (
+                      <option value={id} key={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  状态
+                  <select
+                    aria-label="状态"
+                    value={input.status}
+                    onChange={(event) =>
+                      update("status", event.target.value as Entity["status"])
+                    }
+                  >
+                    {Object.entries(statuses).map(([id, name]) => (
+                      <option value={id} key={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  发生时间
+                  <input
+                    type="datetime-local"
+                    required
+                    value={localTime(input.occurredAt)}
+                    onChange={(event) => {
+                      if (event.target.value)
+                        update(
+                          "occurredAt",
+                          new Date(event.target.value).toISOString(),
+                        );
+                    }}
+                  />
+                </label>
+                <label className="form-field full">
+                  记录时区
+                  <input
+                    required
+                    value={input.timeZone}
+                    onChange={(event) => update("timeZone", event.target.value)}
+                    placeholder="Asia/Shanghai"
+                  />
+                </label>
+              </div>
+              <div className={`kind-explanation ${input.kind}`}>
+                {input.kind === "plan"
+                  ? "计划记录想做的事。状态变为已完成后，也需要单独记录实际发生的事实。"
+                  : input.kind === "fact"
+                    ? "事实记录实际发生或已观察到的内容，请避免把未经确认的建议写成事实。"
+                    : "推断记录假设、估计或建议，确认之前请保留它的推断性质。"}
+              </div>
+              {type && type.fields.length > 0 && (
+                <>
+                  <h3 className="form-section-title">{type.name}详情</h3>
+                  <div className="form-grid">
+                    {type.fields.map((field) => (
+                      <label className="form-field" key={field.key}>
+                        {field.label}
+                        {field.required && (
+                          <span className="required-mark"> *</span>
+                        )}
+                        {field.key === "language" &&
+                        ["learning", "languages"].includes(module.id) ? (
+                          <LanguageSelect
+                            module={module}
+                            catalog={languageCatalog}
+                            profile={profile}
+                            value={String(input.fields[field.key] ?? "")}
+                            onChange={(value) => fieldValue(field, value)}
+                            label={field.label}
+                            required={field.required}
+                          />
+                        ) : field.type === "select" ? (
+                          <select
+                            aria-label={field.label}
+                            required={field.required}
+                            value={input.fields[field.key] ?? ""}
+                            onChange={(event) =>
+                              fieldValue(field, event.target.value)
+                            }
+                          >
+                            <option value="">请选择</option>
+                            {field.options?.map((option) => (
+                              <option value={option} key={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            aria-label={field.label}
+                            required={field.required}
+                            type={
+                              field.type === "date"
+                                ? "date"
+                                : field.type === "number"
+                                  ? "number"
+                                  : "text"
+                            }
+                            inputMode={
+                              field.type === "decimal" ? "decimal" : undefined
+                            }
+                            min={field.min}
+                            step={field.type === "number" ? "any" : undefined}
+                            value={input.fields[field.key] ?? ""}
+                            onChange={(event) =>
+                              fieldValue(field, event.target.value)
+                            }
+                          />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+              <h3 className="form-section-title">关联记录</h3>
+              {!module.relations.length ? (
+                <p className="form-help">此模块暂未声明可用的关联类型。</p>
+              ) : (
+                module.relations.map((relation) => {
+                  const targets = entities.filter(
+                    (entity) =>
+                      !entity.deleted &&
+                      entity.id !== existing?.id &&
+                      (relation.targetModules.includes("*") ||
+                        relation.targetModules.includes(entity.module)),
+                  );
+                  const selected = input.relations
+                    .filter((item) => item.type === relation.id)
+                    .map((item) => item.target);
+                  const missing = selected.filter(
+                    (id) => !targets.some((entity) => entity.id === id),
+                  );
+                  return (
+                    <label
+                      className="form-field full relation-field"
+                      key={relation.id}
                     >
-                      {targets.map((entity) => (
-                        <option value={entity.id} key={entity.id}>
-                          {entity.title} · {kinds[entity.kind]}
-                        </option>
-                      ))}
-                      {missing.map((id) => (
-                        <option value={id} key={id}>
-                          保留已有引用：{id}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="form-help">
-                      {targets.length
-                        ? "按住 Ctrl / ⌘ 可选择多条。"
-                        : "暂无可关联记录。先在目标领域创建记录。"}
-                      {relation.max ? ` 最多 ${relation.max} 条。` : ""}
-                    </span>
-                  </label>
-                );
-              })
-            )}
-            <label className="form-field full markdown-field">
-              {input.type === "review" ? "回顾内容" : "笔记"}
-              <span className="markdown-tag">Markdown 源文本</span>
-              <textarea
-                aria-label={input.type === "review" ? "回顾内容" : "笔记"}
-                rows={7}
-                placeholder={
-                  input.type === "review"
-                    ? "## 发生了什么\n\n## 哪些做法有效\n\n## 下一步行动"
-                    : "可以写下背景、过程和下一步…"
-                }
-                value={input.body}
-                onChange={(event) => update("body", event.target.value)}
-              />
-              <span className="form-help">
-                按原文保存，支持 Markdown 写作；界面不执行笔记中的 HTML。
-              </span>
-            </label>
+                      {relation.name}
+                      <select
+                        aria-label={relation.name}
+                        multiple
+                        value={selected}
+                        onChange={(event) => {
+                          const picked = Array.from(
+                            event.target.selectedOptions,
+                          ).map((option) => ({
+                            type: relation.id,
+                            target: option.value,
+                          }));
+                          if (relation.max && picked.length > relation.max) {
+                            setFormError(
+                              `「${relation.name}」最多关联 ${relation.max} 条记录。`,
+                            );
+                            return;
+                          }
+                          update("relations", [
+                            ...input.relations.filter(
+                              (item) => item.type !== relation.id,
+                            ),
+                            ...picked,
+                          ]);
+                        }}
+                      >
+                        {targets.map((entity) => (
+                          <option value={entity.id} key={entity.id}>
+                            {entity.title} · {kinds[entity.kind]}
+                          </option>
+                        ))}
+                        {missing.map((id) => (
+                          <option value={id} key={id}>
+                            保留已有引用：{id}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="form-help">
+                        {targets.length
+                          ? "按住 Ctrl / ⌘ 可选择多条。"
+                          : "暂无可关联记录。先在目标领域创建记录。"}
+                        {relation.max ? ` 最多 ${relation.max} 条。` : ""}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+              <label className="form-field full markdown-field">
+                {input.type === "review" ? "回顾内容" : "笔记"}
+                <span className="markdown-tag">Markdown 源文本</span>
+                <textarea
+                  aria-label={input.type === "review" ? "回顾内容" : "笔记"}
+                  rows={7}
+                  placeholder={
+                    input.type === "review"
+                      ? "## 发生了什么\n\n## 哪些做法有效\n\n## 下一步行动"
+                      : "可以写下背景、过程和下一步…"
+                  }
+                  value={input.body}
+                  onChange={(event) => update("body", event.target.value)}
+                />
+                <span className="form-help">
+                  按原文保存，支持 Markdown 写作；界面不执行笔记中的 HTML。
+                </span>
+              </label>
+              {needsLanguageUpgrade && (
+                <p className="report-warning">
+                  此语言需要先在个人设置中明确升级到 Schema
+                  3。关闭前请保留未保存的文本。
+                </p>
+              )}
+            </fieldset>
           </div>
           <div className="editor-footer">
             {existing && (
               <button
                 className="text-button danger"
                 type="button"
-                disabled={busy}
+                disabled={busy || !module.enabled}
                 onClick={() =>
                   void run(async () => {
                     try {
@@ -1746,7 +2063,11 @@ function Editor({
               >
                 取消
               </button>
-              <button className="button primary" type="submit" disabled={busy}>
+              <button
+                className="button primary"
+                type="submit"
+                disabled={busy || !module.enabled || needsLanguageUpgrade}
+              >
                 {busy ? "正在保存…" : "保存记录"}
               </button>
             </div>

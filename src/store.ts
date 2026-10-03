@@ -25,6 +25,7 @@ import {
 } from "./permissions.js";
 import { mergeSnapshots } from "./merge.js";
 import { validateSyncMetadata } from "./sync.js";
+import { compatibleVersion } from "./module-contract.js";
 import {
   HUMAN,
   type Module,
@@ -171,6 +172,7 @@ export class Store {
   vault: Vault;
   device: string;
   faultAfterCommit?: () => void;
+  private activationCoordinator?: (id: string, enabled: boolean) => void;
   constructor(
     public root: string,
     options: { skipNoteRecovery?: boolean } = {},
@@ -305,7 +307,62 @@ export class Store {
     this.db.prepare("INSERT INTO modules VALUES(?,?)").run(m.id, json(m));
   }
   setEnabled(id: string, enabled: boolean) {
+    if (typeof enabled !== "boolean")
+      throw Error("Invalid module enabled state");
+    if (this.activationCoordinator)
+      return this.activationCoordinator(id, enabled);
+    if (enabled && this.module(id, false).contract)
+      throw Error("Explicit plugin installation and authorization required");
+    this.writeModuleEnabled(id, enabled);
+  }
+  /** The captured writer belongs only to the activation coordinator. Public
+   * callers always go through setEnabled and cannot bypass plugin authorization. */
+  attachActivationCoordinator(handler: (id: string, enabled: boolean) => void) {
+    this.activationCoordinator = handler;
+    return (id: string, enabled: boolean) =>
+      this.writeModuleEnabled(id, enabled);
+  }
+  private writeModuleEnabled(id: string, enabled: boolean) {
     const m = this.module(id, false);
+    if (typeof enabled !== "boolean")
+      throw Error("Invalid module enabled state");
+    const all = this.modules();
+    if (enabled) {
+      const visiting = new Set<string>(),
+        visited = new Set<string>();
+      const visit = (candidate: Module) => {
+        if (visiting.has(candidate.id)) throw Error("Cyclic module dependency");
+        if (visited.has(candidate.id)) return;
+        visiting.add(candidate.id);
+        for (const d of candidate.contract?.dependencies ?? []) {
+          const target = all.find((item) => item.id === d.module);
+          if (
+            !target ||
+            !target.enabled ||
+            !compatibleVersion(
+              target.version,
+              d.minVersion,
+              d.maxVersionExclusive,
+            )
+          )
+            throw Error(
+              "Missing, incompatible or disabled dependency: " + d.module,
+            );
+          visit(target);
+        }
+        visiting.delete(candidate.id);
+        visited.add(candidate.id);
+      };
+      visit(m);
+    } else {
+      for (const dependent of all)
+        if (
+          dependent.id !== id &&
+          dependent.enabled &&
+          dependent.contract?.dependencies.some((d) => d.module === id)
+        )
+          throw Error("Disable dependent module first: " + dependent.id);
+    }
     m.enabled = enabled;
     this.db.prepare("UPDATE modules SET json=? WHERE id=?").run(json(m), id);
   }
@@ -358,7 +415,12 @@ export class Store {
     );
   }
   list(
-    filter: { module?: string; q?: string; includeDeleted?: boolean } = {},
+    filter: {
+      module?: string;
+      q?: string;
+      includeDeleted?: boolean;
+      enabledOnly?: boolean;
+    } = {},
     cap = HUMAN,
   ) {
     if (filter.module) this.permit(cap, "read", filter.module);
@@ -368,6 +430,8 @@ export class Store {
       .filter(
         (r) =>
           (!filter.module || r.module === filter.module) &&
+          (!filter.enabledOnly ||
+            this.module(String(r.module), false).enabled) &&
           (cap.read.includes("*") || cap.read.includes(String(r.module))),
       )
       .filter((r) => entityAllowed(this.raw(String(r.id))!, cap.scope))
@@ -1382,11 +1446,18 @@ export class Store {
       }
     }
   }
-  migrateModule(next: Module, renames: Record<string, string> = {}) {
+  migrateModule(
+    next: Module,
+    renames: Record<string, string> = {},
+    options: { beforeCommit?: () => void } = {},
+  ) {
     validateModule(next);
     const old = this.module(next.id, false);
     if (next.schemaVersion !== old.schemaVersion + 1)
       throw Error("Migration must advance exactly one schema version");
+    // Schema changes never authorize activation or silently disable modules.
+    // All enabled-state changes belong to the activation coordinator.
+    next = { ...next, enabled: old.enabled };
     const backup = this.backup();
     const path = join(this.root, "migration-backup-" + uuid() + ".json");
     writeFileSync(path, json(backup), { mode: 0o600 });
@@ -1431,6 +1502,9 @@ export class Store {
       this.db
         .prepare("INSERT INTO module_migrations VALUES(?,?,?,?)")
         .run(next.id, old.schemaVersion, next.schemaVersion, now());
+      // A coordinator may persist its disabled execution gate before SQLite
+      // commits. This does not make SQLite and the filesystem one transaction.
+      options.beforeCommit?.();
     });
     return { backup: path };
   }

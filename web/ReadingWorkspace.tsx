@@ -9,6 +9,13 @@ import type {
 } from "../src/reading.js";
 import { LocalDateTimeField } from "./LocalDateTimeField.js";
 import type { SpecialistProps } from "./SpecialistPanels.js";
+import { languageLabel, type LanguageDefinition } from "../src/languages.js";
+import {
+  configuredLanguageOptions,
+  LanguageSelect,
+  languageNeedsUpgrade,
+} from "./LanguageControls.js";
+import type { PersonalProfile } from "./PersonalizationTypes.js";
 export function browserNow(date = new Date()) {
   const offset = -date.getTimezoneOffset();
   const local = new Date(date.valueOf() + offset * 60000)
@@ -37,6 +44,9 @@ export type ReadingUiProps = SpecialistProps & {
   modules: Module[];
   onCreateGoal?: (moduleId: string) => void;
   onShowTasks?: () => void;
+  languageCatalog?: LanguageDefinition[];
+  profile?: PersonalProfile | null;
+  onSettings?: () => void;
 };
 export function ReadingSourceLink({
   id,
@@ -60,10 +70,11 @@ export function ReadingSourceLink({
 export function GoalPicker({
   entities,
   modules,
+  languageCatalog,
   selected,
   onChange,
   label = "共同推进的目标",
-}: Pick<ReadingUiProps, "entities" | "modules"> & {
+}: Pick<ReadingUiProps, "entities" | "modules" | "languageCatalog"> & {
   selected: string[];
   onChange: (ids: string[]) => void;
   label?: string;
@@ -73,21 +84,25 @@ export function GoalPicker({
       !entity.deleted &&
       entity.kind === "plan" &&
       ["goal", "language-goal", "direction"].includes(entity.type) &&
-      entity.status === "active",
+      entity.status === "active" &&
+      (modules.some(
+        (module) => module.id === entity.module && module.enabled,
+      ) ||
+        selected.includes(entity.id)),
   );
   return (
     <fieldset className="goal-picker">
       <legend>{label} · 可多选</legend>
       {!goals.length ? (
         <p className="form-help">
-          暂无活动目标。先创建你自己的领域或语言目标；系统不会自动添加考试、口语或法语目标。
+          暂无活动目标。先创建你自己的领域或语言目标；系统不会自动添加目标。
         </p>
       ) : (
         goals.map((goal) => (
           <label className="check-field" key={goal.id}>
             <input
               type="checkbox"
-              aria-label={`${goal.title} ${modules.find((module) => module.id === goal.module)?.name ?? goal.module}${goal.fields.language ? ` · ${goal.fields.language}` : ""}`}
+              aria-label={`${goal.title} ${modules.find((module) => module.id === goal.module)?.name ?? goal.module}${goal.fields.language ? ` · ${languageLabel(goal.fields.language, languageCatalog)}` : ""}`}
               checked={selected.includes(goal.id)}
               onChange={(event) =>
                 onChange(
@@ -102,7 +117,9 @@ export function GoalPicker({
               <small>
                 {modules.find((module) => module.id === goal.module)?.name ??
                   goal.module}
-                {goal.fields.language ? ` · ${goal.fields.language}` : ""}
+                {goal.fields.language
+                  ? ` · ${languageLabel(goal.fields.language, languageCatalog)}`
+                  : ""}
               </small>
             </span>
           </label>
@@ -231,11 +248,24 @@ function SafeReference({ reference }: { reference: string }) {
   );
 }
 export function ReadingWorkspace(props: ReadingUiProps) {
-  const ready = ["learning", "languages"].every(
-    (id) =>
-      (props.modules.find((module) => module.id === id)?.schemaVersion ?? 0) >=
-      2,
+  const learningModule = props.modules.find(
+    (module) => module.id === "learning",
   );
+  const languageModule = props.modules.find(
+    (module) => module.id === "languages",
+  );
+  const ready = !!learningModule?.enabled && learningModule.schemaVersion >= 2;
+  const languageReady =
+    !!languageModule?.enabled && languageModule.schemaVersion >= 2;
+  const needsOldUpgrade =
+    (!!learningModule?.enabled && learningModule.schemaVersion < 2) ||
+    (!!languageModule?.enabled && languageModule.schemaVersion < 2);
+  const initialLanguage =
+    configuredLanguageOptions(
+      learningModule,
+      props.languageCatalog,
+      props.profile?.languagePreferences.activeCodes,
+    )[0]?.value ?? "";
   const [report, setReport] = useState<ReadingReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [readError, setReadError] = useState("");
@@ -246,7 +276,7 @@ export function ReadingWorkspace(props: ReadingUiProps) {
     title: "",
     reference: "",
     sourceType: "技术文档",
-    language: "英语",
+    language: initialLanguage,
     rights: "",
     body: "",
     occurredAt: browserNow(),
@@ -303,6 +333,10 @@ export function ReadingWorkspace(props: ReadingUiProps) {
     setMaterialSaved(false);
   }
   const meta = { occurredAt, timeZone: materialInput.timeZone };
+  const needsLanguageUpgrade = languageNeedsUpgrade(
+    materialInput.language,
+    learningModule,
+  );
   return (
     <section
       className="panel specialist-panel reading-workspace"
@@ -313,13 +347,12 @@ export function ReadingWorkspace(props: ReadingUiProps) {
           <h2>一份材料，连接知识与语言</h2>
           <p>
             阅读优先，同一次阅读可以推进
-            AI、金融知识和英日目标。分钟只记一次；解释、词汇与目标视角不叠加计时。
+            知识与个人语言目标。分钟只记一次；解释、词汇与目标视角不叠加计时。
           </p>
         </div>
       </div>
-      {!ready ? (
-        <BuiltinUpgradePrompt {...props} />
-      ) : (
+      {needsOldUpgrade && <BuiltinUpgradePrompt {...props} />}
+      {ready && (
         <>
           <div className="reading-guide">
             <p className="form-help">
@@ -338,10 +371,17 @@ export function ReadingWorkspace(props: ReadingUiProps) {
                 <button
                   type="button"
                   className="text-button"
+                  disabled={!languageReady}
                   onClick={() => props.onCreateGoal?.("languages")}
                 >
                   建立语言目标
                 </button>
+                {!languageReady && (
+                  <span className="form-help">
+                    {" "}
+                    语言目标需启用语言模块；基础阅读可继续。
+                  </span>
+                )}
               </li>
               <li>保存有来源的材料</li>
               <li>关联目标，记录阅读</li>
@@ -429,19 +469,17 @@ export function ReadingWorkspace(props: ReadingUiProps) {
                   </label>
                   <label className="form-field">
                     材料语言
-                    <select
-                      aria-label="材料语言"
+                    <LanguageSelect
+                      label="材料语言"
+                      module={learningModule}
+                      catalog={props.languageCatalog}
+                      profile={props.profile}
                       value={materialInput.language}
-                      onChange={(event) =>
-                        materialChange({
-                          language: event.target.value as ReadingLanguage,
-                        })
+                      onChange={(value) =>
+                        materialChange({ language: value as ReadingLanguage })
                       }
-                    >
-                      <option value="英语">英语</option>
-                      <option value="日语">日语</option>
-                      <option value="法语">法语（可选）</option>
-                    </select>
+                      required
+                    />
                   </label>
                   <label className="form-field">
                     来源类型
@@ -528,7 +566,7 @@ export function ReadingWorkspace(props: ReadingUiProps) {
                         title: "虚构样例 · 共享阅读与证据",
                         reference: "local:fictional-reading-example",
                         sourceType: "技术文档",
-                        language: "英语",
+                        language: initialLanguage,
                         rights: "虚构样例",
                         body: "A learning system connects goals to evidence. One reading session can support language and technical knowledge, while its time is counted once.",
                       })
@@ -538,10 +576,27 @@ export function ReadingWorkspace(props: ReadingUiProps) {
                   </button>
                   <button
                     className="button primary"
-                    disabled={props.busy || materialSaved}
+                    disabled={
+                      props.busy ||
+                      materialSaved ||
+                      needsLanguageUpgrade ||
+                      !materialInput.language
+                    }
                   >
                     {materialSaved ? "✓ 材料已保存" : "保存材料原文"}
                   </button>
+                  {needsLanguageUpgrade && (
+                    <p className="report-warning">
+                      此材料语言需要先明确升级阅读学习到 Schema 3。
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={props.onSettings}
+                      >
+                        前往语言设置与升级
+                      </button>
+                    </p>
+                  )}
                 </div>
               </form>
             </details>
@@ -560,7 +615,11 @@ export function ReadingWorkspace(props: ReadingUiProps) {
                     <option value="">请选择材料</option>
                     {materials.map(({ entity }) => (
                       <option key={entity.id} value={entity.id}>
-                        {entity.title} · {entity.fields.language}
+                        {entity.title} ·{" "}
+                        {languageLabel(
+                          entity.fields.language,
+                          props.languageCatalog,
+                        )}
                       </option>
                     ))}
                   </select>
@@ -572,8 +631,11 @@ export function ReadingWorkspace(props: ReadingUiProps) {
                       <ReadingSourceLink id={selectedMaterial.id} {...props} />
                     </div>
                     <p className="form-help">
-                      {selectedMaterial.fields.language} ·{" "}
-                      {selectedMaterial.fields.sourceType} ·{" "}
+                      {languageLabel(
+                        selectedMaterial.fields.language,
+                        props.languageCatalog,
+                      )}{" "}
+                      · {selectedMaterial.fields.sourceType} ·{" "}
                       {selectedMaterial.fields.rights}
                     </p>
                     <p className="reading-reference">
@@ -807,48 +869,74 @@ export function ReadingWorkspace(props: ReadingUiProps) {
                         <p className="form-help">
                           词汇关联一条实际阅读记录，便于回看上下文。
                         </p>
-                        <label className="form-field">
-                          词汇或短语
-                          <input
-                            aria-label="词汇或短语"
-                            required
-                            value={term}
-                            onChange={(event) => setTerm(event.target.value)}
-                          />
-                        </label>
-                        <label className="form-field">
-                          词义或理解
-                          <input
-                            aria-label="词义或理解"
-                            required
-                            value={meaning}
-                            onChange={(event) => setMeaning(event.target.value)}
-                          />
-                        </label>
-                        <label className="form-field">
-                          词汇原文上下文
-                          <textarea
-                            aria-label="词汇原文上下文"
-                            required
-                            value={context}
-                            onChange={(event) => setContext(event.target.value)}
-                          />
-                        </label>
-                        <label className="form-field">
-                          词汇复习日期（可选）
-                          <input
-                            aria-label="词汇复习日期（可选）"
-                            type="date"
-                            value={due}
-                            onChange={(event) => setDue(event.target.value)}
-                          />
-                        </label>
-                        <button
-                          className="button"
-                          disabled={props.busy || !sessionId || !term.trim()}
+                        {!languageReady && (
+                          <p className="report-warning">
+                            词汇复习需启用并升级语言模块。基础阅读与草稿解释可继续。
+                            <button
+                              type="button"
+                              className="text-button"
+                              onClick={props.onSettings}
+                            >
+                              选择语言模块
+                            </button>
+                          </p>
+                        )}
+                        <fieldset
+                          className="language-feature-fields"
+                          disabled={!languageReady}
                         >
-                          保存词汇复习项
-                        </button>
+                          <label className="form-field">
+                            词汇或短语
+                            <input
+                              aria-label="词汇或短语"
+                              required
+                              value={term}
+                              onChange={(event) => setTerm(event.target.value)}
+                            />
+                          </label>
+                          <label className="form-field">
+                            词义或理解
+                            <input
+                              aria-label="词义或理解"
+                              required
+                              value={meaning}
+                              onChange={(event) =>
+                                setMeaning(event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="form-field">
+                            词汇原文上下文
+                            <textarea
+                              aria-label="词汇原文上下文"
+                              required
+                              value={context}
+                              onChange={(event) =>
+                                setContext(event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="form-field">
+                            词汇复习日期（可选）
+                            <input
+                              aria-label="词汇复习日期（可选）"
+                              type="date"
+                              value={due}
+                              onChange={(event) => setDue(event.target.value)}
+                            />
+                          </label>
+                          <button
+                            className="button"
+                            disabled={
+                              props.busy ||
+                              !sessionId ||
+                              !term.trim() ||
+                              !languageReady
+                            }
+                          >
+                            保存词汇复习项
+                          </button>
+                        </fieldset>
                       </form>
                     </div>
                     <div className="reading-artifacts">

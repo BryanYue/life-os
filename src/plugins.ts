@@ -85,6 +85,7 @@ export class PluginManager {
   private installations: PluginInstallation[];
   private repositoryRoot: string;
   private active = new Set<string>();
+  private writeModuleEnabled: (id: string, enabled: boolean) => void;
   constructor(
     private store: Store,
     private options: {
@@ -99,6 +100,11 @@ export class PluginManager {
       throw Error("Plugin execution configuration must be outside repository");
     this.statePath = join(root, "plugin-state.json");
     this.installations = this.readState();
+    this.writeModuleEnabled = store.attachActivationCoordinator(
+      (id, enabled) => {
+        this.setModuleEnabled(id, enabled);
+      },
+    );
   }
   private readState(): PluginInstallation[] {
     if (existsSync(this.statePath)) {
@@ -187,14 +193,32 @@ export class PluginManager {
     id: string,
     action: string,
     fn: (p: PluginInstallation) => T,
+    logSuccess = true,
   ): T {
     const p = this.installation(id);
+    const previous = structuredClone(p);
+    const previousModule = this.store.module(id, false);
+    const activation = ["authorize", "enable", "disable", "uninstall"].includes(
+      action,
+    );
     try {
       const result = fn(p);
-      this.event(p, action, true);
+      if (logSuccess) this.event(p, action, true);
       return result;
     } catch (error) {
-      this.event(p, action, false, error);
+      // Activation touches SQLite and a private grants file. Restore both on
+      // synchronous failure; a logging/persistence error must not leave a module enabled.
+      if (activation) {
+        this.store.db
+          .prepare("UPDATE modules SET json=? WHERE id=?")
+          .run(json(previousModule), id);
+        Object.assign(p, previous);
+      }
+      try {
+        this.event(p, action, false, error);
+      } catch {
+        /* Preserve the original failure if the private state file is unavailable. */
+      }
       throw error;
     }
   }
@@ -312,6 +336,25 @@ export class PluginManager {
     this.installations = this.readState();
     return structuredClone(this.installations);
   }
+  /** Shared entry point for built-in, custom declarative and executable modules. */
+  setModuleEnabled(id: string, enabled: boolean) {
+    if (typeof enabled !== "boolean")
+      throw Error("Invalid module enabled state");
+    const module = this.store.module(id, false);
+    if (module.contract) {
+      // Restored/uninstalled manifests keep their history without restoring grants.
+      if (
+        !enabled &&
+        !this.list().some((p) => p.id === id && p.state !== "uninstalled")
+      ) {
+        this.writeModuleEnabled(id, false);
+        return this.store.module(id, false);
+      }
+      return enabled ? this.enable(id) : this.disable(id);
+    }
+    this.writeModuleEnabled(id, enabled);
+    return this.store.module(id, false);
+  }
   install(path: string) {
     this.installations = this.readState();
     const loaded = this.load(path),
@@ -338,7 +381,7 @@ export class PluginManager {
           json({ ...loaded.manifest.module, enabled: false })
         )
           throw Error("Retained module differs; use upgrade");
-        this.store.setEnabled(id, false);
+        this.writeModuleEnabled(id, false);
       } else this.store.register({ ...loaded.manifest.module, enabled: false });
       if (previous)
         this.installations.splice(this.installations.indexOf(previous), 1, p);
@@ -359,6 +402,7 @@ export class PluginManager {
   authorize(id: string, authorization: PluginAuthorization = {}) {
     return this.guard(id, "authorize", (p) => {
       this.notRunning(id);
+      this.assertModuleCurrent(p);
       const permissions = p.manifest.module.contract.permissions;
       const grants =
         authorization.permissions ??
@@ -385,7 +429,7 @@ export class PluginManager {
         digest(readFileSync(this.externalFile(p.entryPath))) !== p.entryHash
       )
         throw Error("Plugin code changed; upgrade and reauthorize");
-      this.store.setEnabled(id, false);
+      this.writeModuleEnabled(id, false);
       p.state = "disabled";
       p.grants = [...grants];
       p.authorized = true;
@@ -398,11 +442,15 @@ export class PluginManager {
   enable(id: string) {
     return this.guard(id, "enable", (p) => {
       this.notRunning(id);
+      this.assertModuleCurrent(p);
       if (!p.authorized)
         throw Error("Explicit authorization required before enabling plugin");
       this.dependencies(p.manifest.module, true);
-      this.store.setEnabled(id, true);
+      // Persist the execution gate first: a crash can leave an authorized but
+      // SQLite-disabled plugin, never enabled data with an unpersisted execution gate.
       p.state = "enabled";
+      this.persist();
+      this.writeModuleEnabled(id, true);
       return structuredClone(p);
     });
   }
@@ -410,7 +458,7 @@ export class PluginManager {
     return this.guard(id, "disable", (p) => {
       this.notRunning(id);
       this.noEnabledDependents(id);
-      this.store.setEnabled(id, false);
+      this.writeModuleEnabled(id, false);
       p.state = "disabled";
       return structuredClone(p);
     });
@@ -419,7 +467,7 @@ export class PluginManager {
     return this.guard(id, "uninstall", (p) => {
       this.notRunning(id);
       this.noEnabledDependents(id);
-      this.store.setEnabled(id, false);
+      this.writeModuleEnabled(id, false);
       p.state = "uninstalled";
       p.authorized = false;
       p.grants = [];
@@ -431,51 +479,142 @@ export class PluginManager {
   upgrade(path: string) {
     const loaded = this.load(path),
       id = loaded.manifest.module.id;
-    return this.guard(id, "upgrade", (p) => {
-      this.notRunning(id);
-      const old = this.store.module(id, false),
-        next = loaded.manifest.module;
-      if (compareVersions(next.version, old.version) <= 0)
-        throw Error("Upgrade must increase module version");
-      this.dependencies(next, false);
-      let backup: string | undefined;
-      if (next.schemaVersion !== old.schemaVersion) {
-        const migration = next.contract.migrations?.find(
-          (m) =>
-            m.fromSchema === old.schemaVersion &&
-            m.toSchema === next.schemaVersion,
-        );
-        if (!migration)
-          throw Error("Upgrade requires declared one-step schema migration");
-        backup = this.store.migrateModule(
-          { ...next, enabled: true },
-          migration.renames,
-        ).backup;
-      } else {
-        if (
-          json([old.entityTypes, old.relations]) !==
-          json([next.entityTypes, next.relations])
-        )
-          throw Error("Schema changes require schema version migration");
-        this.store.db
-          .prepare("UPDATE modules SET json=? WHERE id=?")
-          .run(json({ ...next, enabled: false }), id);
-      }
-      this.store.setEnabled(id, false);
-      Object.assign(p, loaded, {
-        state: "disabled",
-        authorized: false,
-        grants: [],
-        trustedLocalCode: false,
-        acknowledgeUnsandboxedNetwork: false,
-      });
-      if (!loaded.entryPath) {
-        delete p.entryPath;
-        delete p.entryHash;
-      }
-      return { id, ...(backup ? { backup } : {}), authorizationRequired: true };
-    });
+    return this.guard(
+      id,
+      "upgrade",
+      (p) => {
+        this.notRunning(id);
+        // Upgrade ends with a disabled module and revoked grants. Reject a live
+        // dependent before any schema migration or module manifest is committed.
+        this.noEnabledDependents(id);
+        const old = this.store.module(id, false),
+          next = loaded.manifest.module;
+        if (compareVersions(next.version, old.version) <= 0)
+          throw Error("Upgrade must increase module version");
+        this.dependencies(next, false);
+        const previous = structuredClone(p);
+        let gatePersisted = false;
+        const replace = (value: PluginInstallation) => {
+          for (const key of Object.keys(p))
+            delete (p as unknown as Record<string, unknown>)[key];
+          Object.assign(p, value);
+        };
+        const beforeCommit = () => {
+          this.writeModuleEnabled(id, false);
+          Object.assign(p, loaded, {
+            state: "disabled",
+            authorized: false,
+            grants: [],
+            trustedLocalCode: false,
+            acknowledgeUnsandboxedNetwork: false,
+          });
+          if (!loaded.entryPath) {
+            delete p.entryPath;
+            delete p.entryHash;
+          }
+          try {
+            // This is the only required success-state write. A failed write throws
+            // inside SQLite's transaction, rolling back entities and history too.
+            this.event(p, "upgrade:prepare", true);
+            gatePersisted = true;
+          } catch (error) {
+            // A filesystem failure can have an uncertain outcome after rename.
+            // Retain a durably written disabled gate instead of reviving old grants.
+            try {
+              const disk = this.readState().find((item) => item.id === id);
+              gatePersisted =
+                !!disk &&
+                disk.state === "disabled" &&
+                !disk.authorized &&
+                disk.grants.length === 0 &&
+                json(disk.manifest) === json(loaded.manifest);
+            } catch {
+              /* Unknown disk outcome remains fail closed through manifest checks. */
+            }
+            if (!gatePersisted) replace(previous);
+            throw error;
+          }
+        };
+        let backup: string | undefined;
+        try {
+          if (next.schemaVersion !== old.schemaVersion) {
+            const migration = next.contract.migrations?.find(
+              (m) =>
+                m.fromSchema === old.schemaVersion &&
+                m.toSchema === next.schemaVersion,
+            );
+            if (!migration)
+              throw Error(
+                "Upgrade requires declared one-step schema migration",
+              );
+            backup = this.store.migrateModule(
+              { ...next, enabled: old.enabled },
+              migration.renames,
+              { beforeCommit },
+            ).backup;
+          } else {
+            if (
+              json([old.entityTypes, old.relations]) !==
+              json([next.entityTypes, next.relations])
+            )
+              throw Error("Schema changes require schema version migration");
+            this.store.transaction(() => {
+              this.store.db
+                .prepare("UPDATE modules SET json=? WHERE id=?")
+                .run(json({ ...next, enabled: old.enabled }), id);
+              beforeCommit();
+            });
+          }
+        } catch (error) {
+          if (gatePersisted) {
+            const current = this.store.module(id, false);
+            const committed =
+              current.version === next.version &&
+              current.schemaVersion === next.schemaVersion;
+            throw Error(
+              committed
+                ? "Plugin upgrade committed; module disabled and authorization revoked. Finish pending note recovery before reauthorization: " +
+                    message(error)
+                : "Plugin upgrade requires recovery; disabled execution gate retained and authorization revoked. Retry the upgrade before reauthorization: " +
+                    message(error),
+              { cause: error },
+            );
+          }
+          throw error;
+        }
+        return {
+          id,
+          ...(backup ? { backup } : {}),
+          authorizationRequired: true,
+        };
+      },
+      false,
+    );
   }
+  private assertModuleCurrent(p: PluginInstallation) {
+    const current = this.store.module(p.id, false),
+      installed = p.manifest.module;
+    if (
+      current.version !== installed.version ||
+      current.schemaVersion !== installed.schemaVersion ||
+      json([current.entityTypes, current.relations, current.contract]) !==
+        json([installed.entityTypes, installed.relations, installed.contract])
+    )
+      throw Error(
+        "Plugin module differs from installed manifest; complete upgrade recovery before authorization or execution",
+      );
+    if (
+      this.store.db
+        .prepare(
+          "SELECT 1 FROM pending_notes JOIN entities ON entities.id=pending_notes.id WHERE entities.module=? LIMIT 1",
+        )
+        .get(p.id)
+    )
+      throw Error(
+        "Pending plugin note recovery required before authorization or execution",
+      );
+  }
+
   private permission(
     p: PluginInstallation,
     operation: ModuleOperation,
@@ -495,6 +634,7 @@ export class PluginManager {
     return permission;
   }
   private assertCurrent(p: PluginInstallation) {
+    this.assertModuleCurrent(p);
     const current = this.readState().find((candidate) => candidate.id === p.id);
     const authorization = (value: PluginInstallation) => [
       value.state,
@@ -713,6 +853,7 @@ export class PluginManager {
         !this.store.module(id).enabled
       )
         throw Error("Plugin disabled or unauthorized");
+      this.assertModuleCurrent(p);
       this.dependencies(p.manifest.module, true);
       const operation = p.manifest.module.contract.operations.find(
         (o) => o.id === operationId,

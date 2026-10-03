@@ -8,19 +8,19 @@
 
 需要 **Node.js 24.x**（开发验证版本 24.19.0）和 Git。`node:sqlite` 随 Node 提供，不需要单独编译 SQLite 扩展。首次安装依赖需要网络，安装和构建完成后日常运行不依赖网络。
 
-现有个人 GitHub 连接已验证具备仓库写权限，但云终端推送身份绑定尚未修正，远程发布仍暂停，GitHub main 还没有本版源码。先下载本次交付的 `life-os-v0.1.bundle`，在文件所在目录执行：
+远程发布仍暂停，不能把 GitHub main 当作当前版本入口。已经获得并核验指定版本的迁移 bundle 后，可在不存在的新目录恢复（先用 `git bundle list-heads` 确认版本）：
 
 ```bash
-git clone -b feat/local-life-os life-os-v0.1.bundle life-os
+git clone -b feat/local-life-os /实际迁移路径/life-os.bundle life-os
 cd life-os
 npm ci
 npm run build
 npm start
 ```
 
-已交付 bundle 固定于文档提交 `c513c613`，不含本次审查后的修复；后续可靠性修复与领域/插件扩展保存在当前本地功能分支，按用户偏好未重新打包。bundle 不含运行数据或依赖目录。正确个人连接完成、功能分支发布后，也可从 `https://github.com/BryanYue/life-os.git` clone 并切换至相应功能分支；本次没有推送或创建 PR。
+早期 `life-os-v0.1.bundle` 停在 `c513c613`；2026-10-03 Mac 使用的安全迁移包内 `life-os.bundle` 则停在 `5f1ff29`，两者不是同一版本。Mac 后续 UTC 日期修复为 `25a566f`；本轮分类/个人配置开发继续在本地分支上，两份旧 bundle 均不包含这些后续改动。本轮不生成新交付包、不推送。源码续接须包含最新提交及其历史；bundle 不包含运行数据库、Vault、个人配置或依赖目录。本机从 bundle clone 后的 origin 指向本地 bundle，不代表 GitHub 连接。
 
-浏览器打开 **http://127.0.0.1:4310**。服务仅监听回环地址；关闭终端或 Ctrl+C 停止。不要将端口反向代理到公网。当前尚未在 Mac 原生环境实测；Linux 上完成安装、构建、API 与 Chromium 验证。
+浏览器打开 **http://127.0.0.1:4310**。服务仅监听回环地址；关闭终端或 Ctrl+C 停止。不要将端口反向代理到公网。Mac 原生 Node24/Chrome 已有实测，最新版本与结果见[验证记录](docs/validation.md)，Safari/真实手机仍未验收。本机专用启动器位于 `$WORKSPACE/life-os-local-ops`，使用固定 Node24 和真实路径 TMPDIR；不要用全局 Node26 替代。独立演练可显式设置 `LIFE_OS_PORT=4311`，仍仅监听回环地址。
 
 默认数据目录为 `~/.life-os`，包含 `life.sqlite`、`vault/`、`plugins/`、本机 `config.json`，安装插件后还有 `plugin-state.json`。它们不在源码仓库中。要使用另外一个独立目录：
 
@@ -29,6 +29,16 @@ LIFE_OS_HOME="$HOME/.life-os-demo" npm start
 ```
 
 其中的 `vault/` 子目录可作为 Obsidian Vault 打开；应用没有访问任何既有真实 Vault。只在其中编辑带 `life_id` 的笔记并保留该 ID。重命名/移动笔记可保留关联；删除、重复 ID、解析错误及外部并发改动会明确报错。
+
+## 分类、个人选择与模板
+
+“数据与设置”中的个人配置提供通用分类、模块启停、语言选择、导航偏好和历史显示。语言独立于阅读学习；项目实践与研究分别容纳 AI/Agent 和量化能力，八个既有模块和全部记录身份保留。关闭模块阻止后续写入/插件执行，不删除历史，也不改变同步或 Agent 授权。基础阅读只要求启用阅读学习；词汇复习与语言目标另需语言模块。历史入口允许查看停用模块，已有关系与累计阅读事实保留。
+
+个人偏好写在仓库外数据根的 `personal-profile.json`，带并发版本检查。首次读取从已有模块状态和语言选项推导，不自动写文件或增加任务；模块实际启停由 SQLite 清单保存，profile 中的模块列表只是快照，不能通过复制 profile 恢复插件授权。模块启停立即生效，偏好保存是独立操作。同步配置仍在 `config.json` 中单独控制。
+
+既有 schema2 保持可用。增加韩语等非内置语言后，在设置页明确升级相关模块到 schema3，再使用新语言；升级保留旧中文值、自定义字段、笔记、停用选择及关联，不自动迁移正在使用的数据。停止学习某种语言只移除新建选项，编辑历史记录时保留原值。CLI 提供 `language-upgrades` 和 `upgrade-languages learning|languages`；原 `upgrade-builtin` 仍负责已知 schema1 到2。
+
+模板包含版本、参数和计划初始值。选择模板后先预览，再明确采用；不会自动建立真实目标、完成事实或学习分钟。可以注册个人 JSON 模板，版本递增，旧实例不随模板升级改写；重复采用请求复用同一操作 ID 时不重复创建。私人模板保存在数据根 `templates.json`，不包含可执行代码。详细格式、CLI 和保全流程见[模块说明](docs/modules.md)。
 
 ## 使用八个领域
 

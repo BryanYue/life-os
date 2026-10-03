@@ -26,7 +26,18 @@ import type { SyncBootstrap, SyncProjection } from "./types.js";
 import { importResearchResult } from "./research.js";
 import { importAppleHealthXml } from "./apple-health.js";
 import { seedDemo } from "./domain.js";
-import { pendingBuiltinUpgrades, upgradeBuiltin } from "./builtin-upgrades.js";
+import {
+  pendingBuiltinUpgrades,
+  upgradeBuiltin,
+  pendingBuiltinLanguageUpgrades,
+  upgradeBuiltinLanguages,
+} from "./builtin-upgrades.js";
+import { ProfileManager } from "./profile.js";
+import { TemplateManager } from "./templates.js";
+import {
+  assertRunnableWorkspace,
+  prepareWorkspaceCopy,
+} from "./workspace-copy.js";
 const [command, ...args] = process.argv.slice(2);
 const root = resolve(process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"));
 const key = () => {
@@ -52,7 +63,15 @@ const output = (path: string, value: unknown, purpose: Purpose) => {
     { flag: "wx", mode: 0o600 },
   );
 };
-if (command === "keygen") {
+if (command === "preserve-workspace") {
+  if (args.length !== 3 || args[2] !== "--offline-confirmed")
+    throw Error(
+      "preserve-workspace SOURCE NEW_TARGET --offline-confirmed (stop every writer first)",
+    );
+  console.log(
+    await prepareWorkspaceCopy(args[0], args[1], { offlineConfirmed: true }),
+  );
+} else if (command === "keygen") {
   if (!args[0])
     throw Error(
       "keygen NEW_KEY_FILE (keep a separate secure copy; lost keys cannot be recovered)",
@@ -73,6 +92,7 @@ if (command === "keygen") {
   );
 } else {
   outsideRepository(root);
+  assertRunnableWorkspace(root);
   const s = new Store(root, { skipNoteRecovery: command === "recover-note" });
   const syncGrant = () => {
     const config = JSON.parse(readFileSync(join(root, "config.json"), "utf8"));
@@ -80,6 +100,79 @@ if (command === "keygen") {
   };
   try {
     switch (command) {
+      case "profile": {
+        const manager = new ProfileManager(
+          s,
+          new PluginManager(s, { repositoryRoot: projectRoot }),
+        );
+        if (!args[0] || args[0] === "show")
+          console.log(JSON.stringify(manager.get(), null, 2));
+        else if (args[0] === "update" && args[1] && args[2] !== undefined)
+          console.log(
+            JSON.stringify(
+              manager.update(
+                JSON.parse(readFileSync(args[1], "utf8")),
+                Number(args[2]),
+              ),
+              null,
+              2,
+            ),
+          );
+        else
+          throw Error(
+            "profile show | profile update PATCH_JSON EXPECTED_REVISION",
+          );
+        break;
+      }
+      case "modules": {
+        const manager = new ProfileManager(
+          s,
+          new PluginManager(s, { repositoryRoot: projectRoot }),
+        );
+        if (!args[0] || args[0] === "list")
+          console.log(JSON.stringify(s.modules(), null, 2));
+        else if (["enable", "disable"].includes(args[0]) && args[1])
+          console.log(
+            JSON.stringify(
+              manager.setModuleEnabled(args[1], args[0] === "enable"),
+              null,
+              2,
+            ),
+          );
+        else throw Error("modules list | modules enable|disable MODULE_ID");
+        break;
+      }
+      case "categories":
+        console.log(
+          JSON.stringify(new ProfileManager(s).categories(), null, 2),
+        );
+        break;
+      case "language-upgrades":
+        console.log(JSON.stringify(pendingBuiltinLanguageUpgrades(s), null, 2));
+        break;
+      case "upgrade-languages":
+        if (!args[0]) throw Error("upgrade-languages learning|languages");
+        console.log(
+          JSON.stringify(upgradeBuiltinLanguages(s, args[0]), null, 2),
+        );
+        break;
+      case "templates": {
+        const manager = new TemplateManager(s);
+        const input = () => {
+          if (!args[1]) throw Error("Template operation requires a JSON file");
+          return JSON.parse(readFileSync(args[1], "utf8"));
+        };
+        if (!args[0] || args[0] === "list")
+          console.log(JSON.stringify(manager.list(), null, 2));
+        else if (args[0] === "register")
+          console.log(JSON.stringify(manager.register(input()), null, 2));
+        else if (args[0] === "preview")
+          console.log(JSON.stringify(manager.preview(input()), null, 2));
+        else if (args[0] === "apply")
+          console.log(JSON.stringify(manager.apply(input()), null, 2));
+        else throw Error("templates list|register|preview|apply [JSON_FILE]");
+        break;
+      }
       case "builtin-upgrades":
         console.log(pendingBuiltinUpgrades(s));
         break;
@@ -211,7 +304,14 @@ if (command === "keygen") {
         console.log("Backup written");
         break;
       case "register":
-        s.register(JSON.parse(readFileSync(args[0], "utf8")));
+        {
+          const manifest = JSON.parse(readFileSync(args[0], "utf8"));
+          if (manifest.contract && manifest.enabled)
+            throw Error(
+              "Executable modules require plugin installation and authorization before enabling",
+            );
+          s.register(manifest);
+        }
         console.log("Module registered");
         break;
       case "migrate":
@@ -264,7 +364,7 @@ if (command === "keygen") {
       }
       default:
         console.log(
-          "Commands: demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], builtin-upgrades, upgrade-builtin learning|languages, import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE, export-bootstrap FILE, import-bootstrap FILE [--accept-manifests], export-projection FILE, import-projection FILE, projections, plugins ACTION, import-research FILE, import-apple-health XML TIMEZONE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
+          "Commands: profile show|update PATCH_JSON EXPECTED_REVISION; modules list|enable|disable [ID]; categories; language-upgrades; upgrade-languages learning|languages; templates list|register|preview|apply [JSON_FILE]; preserve-workspace SOURCE NEW_TARGET --offline-confirmed; demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], builtin-upgrades, upgrade-builtin learning|languages, import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE, export-bootstrap FILE, import-bootstrap FILE [--accept-manifests], export-projection FILE, import-projection FILE, projections, plugins ACTION, import-research FILE, import-apple-health XML TIMEZONE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
         );
     }
   } finally {

@@ -4,6 +4,12 @@ import { hash } from "./vault.js";
 import { builtins } from "./modules.js";
 import { allocate } from "./planner.js";
 import { readingReport } from "./reading.js";
+import {
+  LANGUAGE_CATALOG,
+  normalizeLanguage,
+  languageDisplayLabels,
+  type LanguageDefinition,
+} from "./languages.js";
 export function addDecimal(a: string, b: string) {
   const scale = 8n,
     unit = 10n ** scale;
@@ -23,7 +29,11 @@ export function addDecimal(a: string, b: string) {
     (fraction ? "." + fraction : "")
   );
 }
-export function summary(entities: Entity[], moduleId?: string) {
+export function summary(
+  entities: Entity[],
+  moduleId?: string,
+  catalog: readonly LanguageDefinition[] = LANGUAGE_CATALOG,
+) {
   const unique = new Map<string, Entity>();
   for (const entity of entities) {
     const previous = unique.get(entity.id);
@@ -37,7 +47,7 @@ export function summary(entities: Entity[], moduleId?: string) {
   const counts = { plan: 0, fact: 0, inference: 0 };
   const byType: Record<string, number> = {};
   const groups = new Map<string, string>();
-  const minutesByLanguage: Record<string, number> = {};
+  const minutesByLanguageCode: Record<string, number> = {};
   for (const e of selected) {
     counts[e.kind]++;
     byType[e.type] = (byType[e.type] ?? 0) + 1;
@@ -53,17 +63,28 @@ export function summary(entities: Entity[], moduleId?: string) {
       e.type === "practice" &&
       e.kind === "fact"
     ) {
-      const l = String(e.fields.language);
-      minutesByLanguage[l] =
-        (minutesByLanguage[l] ?? 0) + Number(e.fields.minutes ?? 0);
+      const code =
+        normalizeLanguage(e.fields.language) ?? String(e.fields.language);
+      minutesByLanguageCode[code] =
+        (minutesByLanguageCode[code] ?? 0) + Number(e.fields.minutes ?? 0);
     }
   }
-  const reading = readingReport(active);
+  const reading = readingReport(active, catalog);
   if (!moduleId || ["learning", "languages"].includes(moduleId)) {
-    for (const group of reading.byLanguage)
-      minutesByLanguage[group.language] =
-        (minutesByLanguage[group.language] ?? 0) + group.minutes;
+    for (const group of reading.byLanguageCode)
+      minutesByLanguageCode[group.code] =
+        (minutesByLanguageCode[group.code] ?? 0) + group.minutes;
   }
+  const labels = languageDisplayLabels(
+    Object.keys(minutesByLanguageCode),
+    catalog,
+  );
+  const minutesByLanguage = Object.fromEntries(
+    Object.entries(minutesByLanguageCode).map(([code, minutes]) => [
+      labels.get(code)!,
+      minutes,
+    ]),
+  );
   return {
     counts,
     byType,
@@ -74,6 +95,7 @@ export function summary(entities: Entity[], moduleId?: string) {
         return { currency, category, total };
       }),
     minutesByLanguage,
+    minutesByLanguageCode,
     integratedReadingMinutes: reading.uniqueTotalMinutes,
     languageMinutesPolicy:
       "独立语言练习加综合阅读的唯一事实记录；词汇、解释、打卡和目标覆盖视角不重复计时。",

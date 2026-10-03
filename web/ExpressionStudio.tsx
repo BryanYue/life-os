@@ -289,6 +289,12 @@ export function ExpressionStudio(props: Props) {
     }
   }
 
+  if (!module?.enabled)
+    return (
+      <p className="form-help">
+        表达练习需启用阅读学习模块。已有表达仍保留在历史记录中。
+      </p>
+    );
   if (
     !module ||
     module.schemaVersion < 2 ||

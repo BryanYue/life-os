@@ -13,7 +13,21 @@ import {
   listProjections,
 } from "./sync.js";
 import { normalizedScope } from "./permissions.js";
-import { pendingBuiltinUpgrades, upgradeBuiltin } from "./builtin-upgrades.js";
+import {
+  pendingBuiltinUpgrades,
+  upgradeBuiltin,
+  pendingBuiltinLanguageUpgrades,
+  upgradeBuiltinLanguages,
+} from "./builtin-upgrades.js";
+import { ProfileManager, type ProfileUpdate } from "./profile.js";
+import { assertRunnableWorkspace } from "./workspace-copy.js";
+import { LANGUAGE_CATALOG, validateLanguageCatalog } from "./languages.js";
+import {
+  TemplateManager,
+  type TemplateDefinition,
+  type TemplatePreviewInput,
+  type TemplateApplyInput,
+} from "./templates.js";
 import {
   createLearningTask,
   checkInLearningTask,
@@ -93,18 +107,40 @@ export function app(
     syncScope?: SyncScope;
     agentScope?: Record<string, EntityScope>;
     assets?: string;
+    port?: number;
   } = {},
 ) {
   const a = Fastify({ logger: false, bodyLimit: 2_000_000 });
   const plugins = new PluginManager(store, { repositoryRoot: projectRoot });
+  const profile = new ProfileManager(store, plugins);
+  const templates = new TemplateManager(store);
+  const languageCatalog = () =>
+    validateLanguageCatalog([
+      ...LANGUAGE_CATALOG,
+      ...(profile.get().languagePreferences.customLanguages ?? []),
+    ]);
+  const activeRecords = () => {
+    const enabled = new Set(
+      store
+        .modules()
+        .filter((m) => m.enabled)
+        .map((m) => m.id),
+    );
+    return store.list().filter((entity) => enabled.has(entity.module));
+  };
   const syncGrant = options.syncScope ?? options.syncModules ?? [];
   const sessions = new Map<string, { csrf: string; expires: number }>();
-  const origins = [
-    "http://127.0.0.1:4310",
-    "http://localhost:4310",
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-  ];
+  const port = options.port ?? 4310;
+  if (!Number.isInteger(port) || port < 1024 || port > 65535)
+    throw Error("Invalid loopback port");
+  const ports = [...new Set([4310, 5173, port])];
+  const hosts = ["127.0.0.1", "localhost"].flatMap((host) => [
+    host,
+    ...ports.map((value) => `${host}:${value}`),
+  ]);
+  const origins = hosts
+    .filter((host) => host.includes(":"))
+    .map((host) => `http://${host}`);
   a.addHook("onRequest", async (req, reply) => {
     reply
       .header("Cache-Control", "no-store")
@@ -113,9 +149,7 @@ export function app(
         "Content-Security-Policy",
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'",
       );
-    if (
-      !/^(127\.0\.0\.1|localhost)(:4310|:5173)?$/.test(req.headers.host ?? "")
-    )
+    if (!hosts.includes(req.headers.host ?? ""))
       return reply.code(403).send({ error: "Host denied" });
     if (
       (req.headers.origin && !origins.includes(req.headers.origin)) ||
@@ -183,6 +217,30 @@ export function app(
     return { csrf };
   });
   a.get("/api/modules", () => store.modules());
+  a.get("/api/profile", () => profile.get());
+  a.post<{ Body: { patch: ProfileUpdate; expectedRevision: number } }>(
+    "/api/profile",
+    (req) => profile.update(req.body.patch, req.body.expectedRevision),
+  );
+  a.get("/api/categories", () => profile.categories());
+  a.get("/api/languages", () => ({
+    catalog: languageCatalog(),
+    pending: pendingBuiltinLanguageUpgrades(store).pending,
+  }));
+  a.post<{ Body: { module: string } }>("/api/languages/upgrade", (req) =>
+    upgradeBuiltinLanguages(store, req.body.module),
+  );
+  a.get("/api/templates", () => ({ templates: templates.list() }));
+  a.post<{ Body: { template: TemplateDefinition } }>(
+    "/api/templates/register",
+    (req) => templates.register(req.body.template),
+  );
+  a.post<{ Body: TemplatePreviewInput }>("/api/templates/preview", (req) =>
+    templates.preview(req.body),
+  );
+  a.post<{ Body: TemplateApplyInput }>("/api/templates/apply", (req) =>
+    templates.apply(req.body),
+  );
   a.get("/api/builtin-upgrades", () => pendingBuiltinUpgrades(store));
   a.post<{ Body: { module: string } }>("/api/builtin-upgrades", (req) =>
     upgradeBuiltin(store, req.body.module),
@@ -201,7 +259,9 @@ export function app(
   a.post<{ Body: ReadingVocabularyInput }>("/api/reading/vocabulary", (req) =>
     addReadingVocabulary(store, req.body),
   );
-  a.get("/api/reports/reading", () => readingReport(store.list()));
+  a.get("/api/reports/reading", () =>
+    readingReport(store.list(), languageCatalog()),
+  );
   a.post<{ Body: Parameters<typeof createLearningTask>[1] }>(
     "/api/learning/tasks",
     (req) => createLearningTask(store, req.body),
@@ -232,7 +292,7 @@ export function app(
     "/api/advice",
     (req) =>
       generateAdvice(
-        store.list(),
+        activeRecords(),
         req.query.asOf ?? new Date().toISOString(),
         req.query.days === undefined ? 7 : Number(req.query.days),
       ),
@@ -260,6 +320,10 @@ export function app(
   );
   a.get("/api/reports/expression", () => expressionReport(store.list()));
   a.post<{ Body: Module }>("/api/modules", (req) => {
+    if (req.body.contract && req.body.enabled)
+      throw Error(
+        "Executable modules require plugin installation and authorization before enabling",
+      );
     store.register(req.body);
     return { ok: true };
   });
@@ -268,8 +332,7 @@ export function app(
     (req) => {
       if (typeof req.body.enabled !== "boolean")
         throw Error("Invalid enabled state");
-      store.setEnabled(req.params.id, req.body.enabled);
-      return { ok: true };
+      return profile.setModuleEnabled(req.params.id, req.body.enabled);
     },
   );
   a.get<{
@@ -282,7 +345,7 @@ export function app(
   );
   a.post<{ Body: SaveRequest }>("/api/entities", (req) => store.save(req.body));
   a.get<{ Querystring: { module?: string } }>("/api/summary", (req) =>
-    summary(store.list(), req.query.module),
+    summary(store.list(), req.query.module, languageCatalog()),
   );
   a.get<{ Querystring: { quoteCurrency?: string; asOf?: string } }>(
     "/api/reports/finance",
@@ -473,11 +536,16 @@ if (isMain) {
   const root = outsideRepository(
     process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"),
   );
+  assertRunnableWorkspace(root);
   const store = new Store(root);
   const plugins = join(root, "plugins");
   mkdirSync(plugins, { recursive: true });
   for (const f of readdirSync(plugins).filter((f) => f.endsWith(".json"))) {
     const m = JSON.parse(readFileSync(join(plugins, f), "utf8")) as Module;
+    if (m.contract && m.enabled)
+      throw Error(
+        "Executable modules require plugin installation and authorization before enabling",
+      );
     if (!store.modules().some((x) => x.id === m.id)) store.register(m);
   }
   const configPath = join(root, "config.json");
@@ -491,8 +559,10 @@ if (isMain) {
     syncScope: config.syncScope,
     agentScope: config.agentScope,
     assets: join(project, "web-dist"),
+    port: Number(process.env.LIFE_OS_PORT ?? 4310),
   });
-  await a.listen({ host: "127.0.0.1", port: 4310 });
+  const port = Number(process.env.LIFE_OS_PORT ?? 4310);
+  await a.listen({ host: "127.0.0.1", port });
   const stop = async () => {
     await a.close();
     store.close();
@@ -500,5 +570,5 @@ if (isMain) {
   };
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
-  console.log("Life OS: http://127.0.0.1:4310");
+  console.log(`Life OS: http://127.0.0.1:${port}`);
 }

@@ -7,8 +7,15 @@ import {
   type Operation,
 } from "./types.js";
 import { hash } from "./vault.js";
+import {
+  LANGUAGE_CATALOG,
+  languageLabel,
+  languageDisplayLabels,
+  normalizeLanguage,
+  type LanguageDefinition,
+} from "./languages.js";
 
-export type ReadingLanguage = "英语" | "日语" | "法语";
+export type ReadingLanguage = string;
 export type ReadingSourceType =
   "技术文档" | "新闻" | "剧相关文字" | "社交文字" | "其他";
 export type ReadingRights =
@@ -55,6 +62,12 @@ export type ReadingIssue = { entityId: string; code: string; message: string };
 export type ReadingReport = {
   uniqueTotalMinutes: number;
   byLanguage: { language: string; minutes: number; evidenceIds: string[] }[];
+  byLanguageCode: {
+    code: string;
+    language: string;
+    minutes: number;
+    evidenceIds: string[];
+  }[];
   byGoal: {
     goalId: string;
     title: string;
@@ -89,7 +102,6 @@ export type ReadingReport = {
   viewTotalsAdditive: false;
   countingPolicy: string;
 };
-const languages = ["英语", "日语", "法语"];
 const sourceTypes = ["技术文档", "新闻", "剧相关文字", "社交文字", "其他"];
 const rightsValues = [
   "虚构样例",
@@ -120,6 +132,32 @@ function request(input: ReadingRequest) {
   text(input.occurredAt, "date");
   text(input.timeZone, "time zone");
 }
+function languageValue(
+  store: Store,
+  module: string,
+  type: string,
+  value: string,
+) {
+  const code = normalizeLanguage(value);
+  if (!code) throw Error("Invalid reading language");
+  const field = store
+    .module(module)
+    .entityTypes.find((item) => item.id === type)
+    ?.fields.find((item) => item.key === "language");
+  if (field?.type === "select") {
+    const legacy = field.options?.find(
+      (option) => normalizeLanguage(option) === code,
+    );
+    if (!legacy)
+      throw Error(
+        `Reading language requires an explicit ${module} language schema upgrade`,
+      );
+    return legacy;
+  }
+  return LANGUAGE_CATALOG.some((item) => item.legacyValues?.includes(value))
+    ? value
+    : code;
+}
 function material(store: Store, id: string, cap: Capability) {
   text(id, "material ID", 100);
   const entity = store.get(id, cap);
@@ -131,7 +169,7 @@ function material(store: Store, id: string, cap: Capability) {
     entity.kind !== "fact"
   )
     throw Error("Reading requires an existing factual material");
-  if (!languages.includes(String(entity.fields.language)))
+  if (!normalizeLanguage(entity.fields.language))
     throw Error("Reading material requires a supported language");
   if (
     !sourceTypes.includes(String(entity.fields.sourceType)) ||
@@ -179,7 +217,10 @@ function session(store: Store, id: string, source: Entity, cap: Capability) {
     throw Error(
       "Reading support record requires a completed session for this material",
     );
-  if (entity.fields.language !== source.fields.language)
+  if (
+    normalizeLanguage(entity.fields.language) !==
+    normalizeLanguage(source.fields.language)
+  )
     throw Error("Reading session and material languages differ");
   return entity;
 }
@@ -314,14 +355,15 @@ export function createReadingMaterial(
   text(input.title, "title", 300);
   text(input.reference, "reference");
   text(input.body, "original text", 200000);
-  if (!languages.includes(input.language))
-    throw Error("Invalid reading language");
+  const languageCode = normalizeLanguage(input.language);
+  if (!languageCode) throw Error("Invalid reading language");
   if (!sourceTypes.includes(input.sourceType))
     throw Error("Invalid reading source type");
   if (!rightsValues.includes(input.rights))
     throw Error("Invalid reading rights metadata");
   const prior = replay(store, input, "learning", "material", cap);
   if (prior) return prior;
+  const language = languageValue(store, "learning", "material", input.language);
   return persist(
     store,
     input,
@@ -336,7 +378,7 @@ export function createReadingMaterial(
       fields: {
         reference: input.reference,
         sourceType: input.sourceType,
-        language: input.language,
+        language,
         rights: input.rights,
       },
       relations: [],
@@ -442,6 +484,10 @@ export function addReadingVocabulary(
   input: ReadingVocabularyInput,
   cap = HUMAN,
 ): Entity {
+  if (!store.module("languages", false).enabled)
+    throw Error(
+      "Reading vocabulary requires the languages module to be enabled; data preserved",
+    );
   request(input);
   text(input.term, "vocabulary term");
   text(input.meaning, "vocabulary meaning");
@@ -468,7 +514,12 @@ export function addReadingVocabulary(
       occurredAt: input.occurredAt,
       timeZone: input.timeZone,
       fields: {
-        language: reading.fields.language,
+        language: languageValue(
+          store,
+          "languages",
+          "revision",
+          String(reading.fields.language),
+        ),
         term: input.term,
         meaning: input.meaning,
         context: input.context,
@@ -483,7 +534,10 @@ export function addReadingVocabulary(
   );
 }
 
-export function readingReport(entities: Entity[]): ReadingReport {
+export function readingReport(
+  entities: Entity[],
+  catalog: readonly LanguageDefinition[] = LANGUAGE_CATALOG,
+): ReadingReport {
   const unique = new Map<string, Entity>();
   for (const entity of entities) {
     const prior = unique.get(entity.id);
@@ -634,9 +688,15 @@ export function readingReport(entities: Entity[]): ReadingReport {
           (materialId ? lookup.get(materialId)?.fields.language : "") ??
           "",
       );
-      if (!languages.includes(language))
+      const languageCode = normalizeLanguage(language);
+      if (!languageCode)
         issue(entity, "missing-language", "阅读语言缺失或不受支持");
-      add(languageGroups, language || "未注明", minutes, entity.id);
+      add(
+        languageGroups,
+        languageCode ?? (language || "未注明"),
+        minutes,
+        entity.id,
+      );
       for (const target of targets) {
         const group = goalGroups.get(target.id) ?? {
           goalId: target.id,
@@ -667,11 +727,25 @@ export function readingReport(entities: Entity[]): ReadingReport {
     if (!links.sessionId) issue(entity, "session-link", "词汇缺少阅读记录关系");
     return { entity, ...links };
   });
+  const languageLabels = languageDisplayLabels(
+    [...languageGroups.keys()],
+    catalog,
+  );
   return {
     uniqueTotalMinutes,
     byLanguage: [...languageGroups]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([language, group]) => ({ language, ...group })),
+      .map(([language, group]) => ({
+        language: languageLabels.get(language)!,
+        ...group,
+      })),
+    byLanguageCode: [...languageGroups]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([code, group]) => ({
+        code,
+        language: languageLabel(code, catalog),
+        ...group,
+      })),
     byGoal: [...goalGroups.values()].sort((a, b) =>
       a.goalId.localeCompare(b.goalId),
     ),
