@@ -1,6 +1,6 @@
 # local-v01 任务进度
 
-更新时间：2026-10-09（Asia/Shanghai）。负责人：主代理 Codex；当前整合目录 `$CODEX_HOME/worktrees/af76/life-os`，分支 `codex/lifeos-consolidation-20261009`。以下早期章节保留历史语义；当前约定见文末 2026-10-09 整合阶段。
+更新时间：2026-10-09（Asia/Shanghai）。负责人：主代理 Codex；当前整合目录 `$CODEX_HOME/worktrees/af76/life-os`，分支 `codex/lifeos-delivery-20261009`。以下早期章节保留历史语义；当前约定见文末 2026-10-09 PR 合入 main 阶段。
 
 ## 当前约定
 
@@ -361,3 +361,18 @@ Chrome首轮执行沙箱内43项全部在browserType.launch阶段失败（0ms、
 GitHub CI run37899479349在上述2eab712全部success：npm ci、check、Chromium安装、E2E、release:scan均完成；本地发布扫描128文件/12 HEAD祖先、index/提交元数据与正文/web-dist无配置命中。完整scan不包括其他refs/忽略文件，旧含私人路径祖先没有被推送。最终同业务代码的状态文档协调更新另保存提交，源码/测试/锁文件不变，不重跑无关本地测试；该文档提交仍需发布扫描，GitHub既有workflow自动触发验证。
 
 正式本轮完成：分支事实梳理、源未提交工作保全、通用代码/私人配置数据隔离修复、动态配置初始化、依赖安全补漏、合成验证与安全GitHub同步；Obsidian O1–O4完善计划及交易规划保留。未完成：原生Obsidian/系统URI、旧实际启动产物切换、真实数据迁移/深度体验、交易研究P0–P6、真实云连接器/Watch/Health等。Claude独立copy已清理，所有相关run已停止并裁决；报告/patch/decision、旧失败及bundle/hash保存在本机忽略目录.local/audits/consolidation-20261009，delivery.json为精确commit/tree/同步/CI证据入口，不另建进度。79既有数据文件指纹未变。
+
+
+## 2026-10-09 PR 合入 main 阶段
+
+新增用户原话：“这样 先删除 无用的分支  ,把最新的实施 推送到远程 创建 pr  ,通过这种方式  何如 `main` 分支 然后再继续 我们”。据此按PR合入main收口，原默认入口选择问题不再待定；授权包括必要远程写入与无独有成果分支清理，但尚不自动扩展为强制改写main历史或放宽发布身份判据。
+
+基线：本工作树及主checkout/远端业务ref均为acb7d066e95621e3e30ef20af0bbf3b355bc57c6；main为7ebb56b933b9faceb9c1f4db2aff19f38d220458。GitHub当前个人身份BryanYue、push/admin权限已核对，无现存PR，无分支保护或rulesets。唯一writer为Codex（Git协调/本进度），当前无Claude运行；具体业务代码不变。空probe与临时整合分支已保全并清理，旧658c/f76 review树含未发布历史，继续只在本机保存。
+
+最新业务提交的远端CI run37900501940已全部success（npm ci/check/E2E/release:scan），与已报告本地check297/297、Chrome43/43和audit0对应。现有main历史仅初始README，与业务分支无共同祖先；在独立本机临时clone中运行当前发布扫描，实际exit1，仅命中初始提交non-noreply author/committer。没有改扫描规则、CI ref或合并判据。
+
+具体方案：已有指定noreply根110ca3fe96c3b98861c0141f4ce5cf4ba1b85603与main原根的tree均为b37dfa358884851e2e820f1254503246ee3da85c，文件diff为空，两者均无父提交；安全根是acb7d066祖先。先仅对main按精确旧SHA条件更新到安全根，再通过PR合入审定业务。这一次历史更新必须获得明确用户决定（AGENTS远程受限历史条件、W10），否则不执行。原根已在本机完整refs-before-cleanup.bundle中保全；不会通过公开备份分支再次发布旧身份。后续采用本地生成指定noreply合并提交并完整扫描，GitHub临时PR merge身份若触发既有门禁则保留真实失败，先查实策略，不能冒充正式判据通过。
+
+本机具体证据：`.local/audits/consolidation-20261009/main-pr-preflight.json`及`main-baseline-release-scan.log`（忽略，不上传）。待确认的历史更新之外，PR正文草案已准备，尚未创建PR/合入main；真实数据、旧运行入口和原生Obsidian验收状态不变。合入后再继续专用本机Vault阶段。
+
+用户已明确答复：“同意修正初始提交身份，再创建并合入 PR（推荐）”。据此批准上述main同tree根身份替换（7ebb56b→110ca3fe），仅精确旧SHA条件更新main；不视为放宽扫描或任意历史重写授权。现在继续执行根修正、PR实际检查、合入与分支清理。
