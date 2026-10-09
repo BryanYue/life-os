@@ -376,3 +376,25 @@ GitHub CI run37899479349在上述2eab712全部success：npm ci、check、Chromiu
 本机具体证据：`.local/audits/consolidation-20261009/main-pr-preflight.json`及`main-baseline-release-scan.log`（忽略，不上传）。待确认的历史更新之外，PR正文草案已准备，尚未创建PR/合入main；真实数据、旧运行入口和原生Obsidian验收状态不变。合入后再继续专用本机Vault阶段。
 
 用户已明确答复：“同意修正初始提交身份，再创建并合入 PR（推荐）”。据此批准上述main同tree根身份替换（7ebb56b→110ca3fe），仅精确旧SHA条件更新main；不视为放宽扫描或任意历史重写授权。现在继续执行根修正、PR实际检查、合入与分支清理。
+
+执行结果：已原子推送精确lease的main根修正110ca3fe和业务进度提交b092e4a44d648a8079b944e27000609f81f929f0，主checkout业务分支快进一致。已创建并附加PR #1（https://github.com/BryanYue/life-os/pull/1），base110ca3fe/headb092e4a，可合并。真正PR临时merge ac535a5357bdfe67ed5c2909a084ffd6767df2d4与head的tree完全相同；独立临时clone执行现有完整扫描实际exit1，仅该临时提交身份不满足门禁：author是其他真实地址，committer是GitHub平台机器人。未回显地址、改账户配置或把该临时提交合入main。push CI37913300110/PR CI37913324651尚在运行，不记通过。拟让Claude只读分析CI身份范围和本地noreply合并策略，Codex核验，若涉及已保护CI判据则取得具体用户决定；不在分析期间修改冻结原件。
+
+只读Claude Opus5.5/high run-VgsEcVSWAkKC3zwE已正常结束216.3s，6项逐条Codex accepted_with_corrections，报告/结果全字节SHA核验保存在本机audit；GLOBAL-AGENTS读取警告由Codex回读补足，未把Claude对所有GitHub合并方式身份的推断当实测。业务push CI37913300110已全部success；PR CI37913324651实际check/E2E成功、release:scan仅ac535a5 metadata失败。旧“未发生泄露”保留历史时点；当前明确区分：已公开可拉取的平台PR临时metadata带出真实author地址，业务交付历史没有命中。仓库修改不能撤回平台对象/缓存或自动修改用户账号邮箱设置。
+
+已在独立本机合成repo验证Claude方案C（尚未应用）：真实PR重建等tree完整scan exit0；分叉干净祖先通过；base历史独有私人路径仍exit1；head不合规committer仍exit1；平台tree与本地重建不一致立即退出。推荐增加一个PR专用等tree重建步骤，后续测试/构建/扫描都在本地等价合并上运行；扫描器零变化，实际head/base完整历史与main push判据不变。正式语义变化是PR不再审查平台临时提交自身metadata和正文，按W10待用户明确决定。Claude另读到其用户级CLAUDE.md“禁push main、只能PR人工合并”默认，已随具体本地合并/快进路线一并请求用户选择；不由代理假设解除。三项原问题已原样传达（合入方式、方案C、平台披露边界）。当前无活动Claude任务，唯一writer Codex，未合入main。
+
+
+### 2026-10-09 用户授权放宽提交邮箱身份门禁
+
+用户新增原话：“[发布扫描失败](https://github.com/BryanYue/life-os/actions/runs/37913324651)，唯一失败项是 GitHub 临时合并提交的邮箱身份 确认下这个问题 ,具体什么问题, 邮箱身份 放宽下 让它能 通过 检查 修复下这个问题”。该明确授权替代旧‘提交author/committer必须全为指定noreply’的扫描验收语义；无需再审批同一变更。本轮采用直接允许Git提交邮箱metadata的最小修复，保留实际PR merge checkout，不采用尚未批准的等tree重建方案C。手动创建的新提交继续使用已配置指定noreply身份；内容隐私检查仍覆盖源码/index/完整HEAD历史blob、提交正文及web-dist，私有文件/凭据/机器路径/非示例正文邮箱、shallow/grafts/replace防护不变。允许普通提交邮箱不代表平台邮箱披露已撤回。
+
+实际基线b092e4a，当前只有Codex自己的未提交PROGRESS更新，完整保留；远端main110ca3fe，PR #1开放。再次核对个人执行身份BryanYue及仓库push/admin权限。失败run37913324651的日志和临时commit API再次核验：只报ac535a5的non-noreply author/committer，普通author邮箱及GitHub平台committer均不满足旧后缀规则，原check/E2E成功。
+
+本轮代码唯一writer为Claude独立copy，拟允许scripts/release-scan.mjs、tests/release-scan.test.ts及必要同步/隔离说明文档，Codex独占本进度和Git整合。目标是旧PR元数据反例新scan通过，原正文/历史/构建隐私反例仍拒绝；不修改业务运行代码、workflow触发/checkout、依赖、正式业务和资源判据。Claude执行期间原工作区全部冻结。父任务核验patch/必要回归、重放实际PR临时提交并扫描当前交付历史后推送现有PR，检查真实CI；按此前已批准的PR合入目标继续标准GitHub合并，再核main CI与清理已合并分支。
+
+
+Claude Sonnet5.5/medium实现run-9ivH4J_1gA8rbbB4已停止83.1s，4文件delivery.patch完整阅读/SHA核验、apply --check后应用，父仅Prettier格式化测试，裁决accepted_with_corrections且applied=true。插件记录冻结inputs未走Read与报告Bash写入被拒绝警告；父直接阅读关键原件和完整diff补足，报告最终完整保留，不以Claude pipeline退出声明代替验证。
+
+父Node24独立扫描回归35/35、0skip通过，lint/typecheck通过；同一新测试文件对旧scanner实测32pass/3fail，失败恰好是新授权的作者/提交者邮箱接受场景。实际PR ac535a5全history重放旧scanner exit1仅metadata、新scanner exit0（128files、15祖先）；旧保留f76含个人机器路径历史仍exit1。内容中的相同邮箱在worktree/index/history/message/build均拒绝且不回显。当前工作区/index/完整HEAD历史/web-dist扫描通过；workflow/src/web/依赖无改动。正式判据变化仅Git作者/提交者EMAIL不再限制，由本节用户原话明确批准；元数据允许普通地址不构成消除平台披露。
+
+本次修复将随原PR #1推送，GitHub真实push及pull_request CI仍运行原样workflow，不记预期通过。后续使用标准GitHub PR merge、指定noreply作者邮箱并匹配审定head，main自动push扫描覆盖平台最终合并历史；此前禁止直接push main的默认规则无需豁免。真实CI结果、合并SHA和清理证据记录于本机delivery manifest及后续本进度，不再为已批准邮箱变更请求确认。

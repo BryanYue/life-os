@@ -87,15 +87,87 @@ test("release scan combines nested path, extension, content and build rules", ()
     assert.match(result.stderr, /credential-like/);
     assert.match(result.stderr, /web-dist/);
   }));
-test("release scan reports historical author metadata without content", () =>
+test("release scan accepts ordinary author and committer email metadata", () =>
   fixture((dir, git) => {
     git("config", "user.email", "someone" + "@" + "synthetic.test");
     git("commit", "--allow-empty", "-qm", "metadata");
     const result = scan(dir);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /non-noreply/);
-    assert.doesNotMatch(result.stderr, /someone/);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
   }));
+test("release scan accepts a GitHub-style merge with human author and platform committer", () =>
+  fixture((dir, git) => {
+    const base = git("rev-parse", "HEAD");
+    git("checkout", "-q", "-b", "side");
+    git(
+      "-c",
+      "user.email=human" + "@" + "synthetic.test",
+      "commit",
+      "--allow-empty",
+      "-qm",
+      "side change",
+    );
+    const side = git("rev-parse", "HEAD");
+    git("checkout", "-q", "-b", "target", base);
+    git("commit", "--allow-empty", "-qm", "target change");
+    const tree = git("rev-parse", "HEAD^{tree}");
+    const merge = execFileSync(
+      "git",
+      [
+        "commit-tree",
+        tree,
+        "-p",
+        git("rev-parse", "HEAD"),
+        "-p",
+        side,
+        "-m",
+        "Merge side",
+      ],
+      {
+        cwd: dir,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: "Human",
+          GIT_AUTHOR_EMAIL: "human" + "@" + "synthetic.test",
+          GIT_COMMITTER_NAME: "GitHub",
+          GIT_COMMITTER_EMAIL: "platform" + "@" + "synthetic.test",
+        },
+      },
+    ).trim();
+    git("reset", "-q", "--hard", merge);
+    assert.equal(
+      git("rev-list", "--parents", "-n1", "HEAD").split(" ").length,
+      3,
+    );
+    const result = scan(dir);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }));
+for (const scope of ["worktree", "index", "history", "message", "build"]) {
+  test(`release scan still rejects a non-example email in ${scope} without echoing it`, () =>
+    fixture((dir, git) => {
+      const content = "contact someone" + "@" + "synthetic.test\n";
+      if (scope === "message")
+        git("commit", "--allow-empty", "-qm", "Synthetic " + content);
+      else if (scope === "build") {
+        mkdirSync(join(dir, "web-dist"));
+        writeFileSync(join(dir, "web-dist", "chunk.js"), content);
+      } else {
+        writeFileSync(join(dir, "mail.md"), content);
+        if (scope !== "worktree") {
+          git("add", ".");
+          if (scope === "history") {
+            git("commit", "-qm", "synthetic email");
+            git("rm", "-q", "mail.md");
+            git("commit", "-qm", "remove email");
+          } else writeFileSync(join(dir, "mail.md"), "safe worktree");
+        }
+      }
+      const result = scan(dir);
+      assert.equal(result.status, 1, result.stdout + result.stderr);
+      assert.match(result.stderr, /non-example email/);
+      assert.doesNotMatch(result.stderr + result.stdout, /someone/);
+    }));
+}
 test("release scan rejects incomplete history", () =>
   fixture((dir, git) => {
     writeFileSync(
@@ -209,7 +281,7 @@ for (const prefix of ["sk" + "-proj-", "sk" + "-ant-api03-"]) {
       assert.match(result.stderr, /credential-like/);
     }));
 }
-test("review regression: release scan rejects a private committer with a compliant author", () =>
+test("review regression: release scan accepts a non-noreply committer with a noreply author", () =>
   fixture((dir, git) => {
     git(
       "-c",
@@ -221,9 +293,7 @@ test("review regression: release scan rejects a private committer with a complia
       "committer fixture",
     );
     const result = scan(dir);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /non-noreply/);
-    assert.doesNotMatch(result.stderr, /committer@/);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
   }));
 for (const mode of ["120000", "160000"]) {
   test(`review regression: release scan refuses index mode ${mode}`, () =>

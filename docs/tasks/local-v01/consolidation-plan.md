@@ -20,7 +20,7 @@
 
 | 层                                       | 权威                    | 位置                       | 进入 Git | 隔离保证                                                                                                                          |
 | ---------------------------------------- | ----------------------- | -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 通用源码、Schema、内置模块、合成样例     | 仓库                    | 仓库内                     | 是       | 发布扫描：私有文件类型/路径、凭据、备份载荷、非示例邮箱、非 noreply 元数据、个人机器路径（工作树/index/全历史/提交正文/构建产物） |
+| 通用源码、Schema、内置模块、合成样例     | 仓库                    | 仓库内                     | 是       | 发布扫描：私有文件类型/路径、凭据、备份载荷、非示例邮箱（仅内容；作者/提交者邮箱元数据不再限制，含 GitHub 合并提交）、个人机器路径（工作树/index/全历史/提交正文/构建产物） |
 | 结构化当前状态、历史、启停、同步游标     | SQLite `life.sqlite`    | `$LIFE_OS_HOME`            | 否       | `Store` 构造与 `Store.restore` 入口统一经 `outsideRepository` 检查（含符号链接祖先，以及本机其他 Life OS 源码 checkout），拒绝时无目录/数据库/权限副作用 |
 | 正文                                     | 专用 Vault Markdown     | `$LIFE_OS_HOME/vault`      | 否       | Vault 拒绝符号链接、重复 ID、根外路径                                                                                             |
 | 个人偏好（语言、排序、分类名、模板偏好） | `personal-profile.json` | 数据根                     | 否       | `ProfileManager` 写前 `outsideRepository`；GET 不初始化                                                                           |
@@ -44,7 +44,7 @@
 ## 4. 第一批（本轮）已实现
 
 1. `Store` 构造和 `Store.restore` 复用 `outsideRepository`：直接调用、仓库内新目录、仓库内已有目录、经符号链接父目录指回仓库均拒绝，且仓库目录列表、已有目录内容与权限不变；仓库外首次生成与恢复正常（`tests/safety-regression.test.ts`）。
-2. 发布扫描新增“个人机器路径”类别：识别具体账户名的 macOS/Linux 主目录与 Windows 用户目录，覆盖工作树、index、全历史 blob、提交正文和 `web-dist`；只输出类别和文件，不回显值；`<user>`、`$HOME`、`~` 占位不命中（`tests/release-scan.test.ts`）。原规则、完整历史、grafts/shallow 拒绝和 noreply 判据保持。
+2. 发布扫描新增“个人机器路径”类别：识别具体账户名的 macOS/Linux 主目录与 Windows 用户目录，覆盖工作树、index、全历史 blob、提交正文和 `web-dist`；只输出类别和文件，不回显值；`<user>`、`$HOME`、`~` 占位不命中（`tests/release-scan.test.ts`）。原规则、完整历史、grafts/shallow 拒绝保持；作者/提交者邮箱元数据判据已按用户授权放宽，内容、提交正文与构建产物中的非示例邮箱仍拒绝。
 3. `.gitignore` 补充 `.local/`、根 `config.json`、`plugins/`、`backups/`、`.obsidian/`、`.DS_Store`。
 4. 当前文档中的个人机器路径已脱敏。`f76ea92` 等历史提交里的旧路径仍在，完整扫描会如实拒绝该历史，这是预期防护。
 

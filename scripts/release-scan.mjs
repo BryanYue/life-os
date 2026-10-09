@@ -130,11 +130,6 @@ try {
   }
   const commits = git("rev-list", "HEAD").trim().split("\n").filter(Boolean);
   for (const commit of commits) {
-    const emails = git("show", "-s", "--format=%ae%n%ce", commit)
-      .trim()
-      .split("\n");
-    if (emails.some((e) => !e.endsWith("@users.noreply.github.com")))
-      failures.add(commit + ": non-noreply author/committer");
     scan("commit-message", commit, () =>
       git("show", "-s", "--format=%B", commit),
     );
@@ -154,7 +149,7 @@ try {
     process.exitCode = 1;
   } else
     console.log(
-      `Scanned ${files.length} worktree files, index, ${commits.length} HEAD-reachable commits/metadata, and optional web-dist: no configured findings. Ignored runtime data, other refs and external files are excluded; human review is still required.`,
+      `Scanned ${files.length} worktree files, index, ${commits.length} HEAD-reachable commits (messages and trees; author/committer email metadata is not restricted), and optional web-dist: no configured findings. Ignored runtime data, other refs and external files are excluded; human review is still required.`,
     );
 } catch (error) {
   if (failures.size) console.error([...failures].join("\n"));
