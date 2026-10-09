@@ -1,0 +1,24 @@
+{
+  "format": "life-os-research-v1",
+  "id": "synthetic-research-example",
+  "revision": "proposal-1",
+  "title": "Synthetic unrun research proposal",
+  "hypothesis": "Fictional parameter comparison; no strategy or investment advice.",
+  "experimentVersion": "0.1.0",
+  "dataset": {
+    "version": "synthetic-v1",
+    "reference": "synthetic://generated-example"
+  },
+  "code": { "reference": "synthetic://unimplemented-example" },
+  "parameters": { "window": 10 },
+  "costs": {
+    "commissionBps": 1,
+    "slippageBps": 2,
+    "assumptions": "Fictional demonstration only"
+  },
+  "status": "not-run",
+  "result": null,
+  "occurredAt": "2030-04-01T12:00:00Z",
+  "timeZone": "UTC",
+  "risk": "No backtest was performed. No financial execution is available."
+}

@@ -1,0 +1,15 @@
+{
+  "format": "life-os-health-v1",
+  "samples": [
+    {
+      "id": "synthetic-sample-1",
+      "revision": "1",
+      "metric": "duration",
+      "value": 12,
+      "unit": "min",
+      "start": "2030-04-01T10:00:00+09:00",
+      "timeZone": "Asia/Tokyo"
+    }
+  ],
+  "synthetic": true
+}

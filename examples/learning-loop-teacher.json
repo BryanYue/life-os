@@ -1,0 +1,13 @@
+{
+  "protocol": "life-os-teacher-summary-v1",
+  "source": { "namespace": "synthetic-teacher", "id": "summary-1", "revision": 1 },
+  "language": "en",
+  "occurredAt": "2030-04-01T09:00:00+08:00",
+  "timeZone": "Asia/Shanghai",
+  "originalText": "虚构教师聊天原文。请回看题目中的限定词。没有真实个人资料或官方试题。",
+  "summary": "人工结构化摘要；尚未核实，没有发音评分。",
+  "modality": "chat-transcript",
+  "recommendations": ["依据实际错项尝试圈出限定词"],
+  "sessionIds": [],
+  "goalIds": []
+}
