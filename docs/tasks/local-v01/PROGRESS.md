@@ -352,3 +352,12 @@ Chrome首轮执行沙箱内43项全部在browserType.launch阶段失败（0ms、
 最终Chrome43/43、0skip通过（2.7分钟，Node24/本机Chrome、单worker、4396虚构数据），端口已释放；桌面与390px Obsidian合成文件往返通过，但没有启动原生Obsidian或测系统URI。完整check297/297、audit0与最终锁绑定，旧沙箱启动失败保留。三数据根79文件SHA仍全未变，旧源码worktree干净，主checkout原三文档保存提交干净。
 
 交付前协调核查：保留原f76完整历史及本轮候选本地提交，干净public提交使用a6ad8f4父版本与同一最终tree，不丢任何审定代码/规划文本。远端仅feat/local-life-os快进；probe为空提交无独有tree且预检bundle可恢复，满足清理条件。旧迁移origin bundle保留原文件与refs快照，正常GitHubremote将统一为origin，其他chat的658c worktree仍保留、不擅自归档。默认main未收到用户选择，保留其入口与历史；应用最新版使用业务分支。实际push SHA、scan/CI和最后清理结果在仓外交付manifest中记录，不将预期作为完成。
+
+
+### 2026-10-09 分支同步及远端CI完成
+
+已成功快进GitHub业务ref至2eab7122e9aeb08bac093e8a34c3d50b3a11806c，主checkout也快进同SHA；当前delivery worktree/主checkout工作树干净，旧658c/f76树保持干净且未变。临时整合e8c007e树与2eab712完全相同、完整refs-before-cleanup.bundle保全核验后已删除临时分支；远端probe9442965与旧e605树相同、精确旧SHA条件删除成功。旧bundle保留，仅移除过期origin配置并把GitHub remote统一为origin；本地主业务及当前交付上游均明确origin/feat/local-life-os。GitHub远端只剩feat/local-life-os和main；main仍7ebb56b/default，入口选择未收到答复，不擅自合并无共同祖先历史。
+
+GitHub CI run37899479349在上述2eab712全部success：npm ci、check、Chromium安装、E2E、release:scan均完成；本地发布扫描128文件/12 HEAD祖先、index/提交元数据与正文/web-dist无配置命中。完整scan不包括其他refs/忽略文件，旧含私人路径祖先没有被推送。最终同业务代码的状态文档协调更新另保存提交，源码/测试/锁文件不变，不重跑无关本地测试；该文档提交仍需发布扫描，GitHub既有workflow自动触发验证。
+
+正式本轮完成：分支事实梳理、源未提交工作保全、通用代码/私人配置数据隔离修复、动态配置初始化、依赖安全补漏、合成验证与安全GitHub同步；Obsidian O1–O4完善计划及交易规划保留。未完成：原生Obsidian/系统URI、旧实际启动产物切换、真实数据迁移/深度体验、交易研究P0–P6、真实云连接器/Watch/Health等。Claude独立copy已清理，所有相关run已停止并裁决；报告/patch/decision、旧失败及bundle/hash保存在本机忽略目录.local/audits/consolidation-20261009，delivery.json为精确commit/tree/同步/CI证据入口，不另建进度。79既有数据文件指纹未变。

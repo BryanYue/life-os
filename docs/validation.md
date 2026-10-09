@@ -289,3 +289,6 @@ Node 24.19.0；依赖按同一 `package-lock.json` 复制到副本（离线 `npm
 Codex在整合worktree按最终锁重新执行Node24 npm ci，随后完整npm run check **297/297**、0失败/跳过，lint/typecheck/build通过；独立配置父反例2/2及quote非法换行拒绝/普通字符串引号保留通过，npm audit **0**。Chrome首轮在外层执行沙箱中43项均于browserType.launch失败（SIGABRT、kill EPERM），业务断言未运行，失败日志保留；运行环境批准后原样43项、1worker、45秒判据、4396虚构数据根与临时Chrome profile，完整npm run test:e2e **43/43**通过（2.7分钟）。未缩覆盖/改超时或正式断言。
 
 本机三套既有数据共79文件指纹全未变；没有启动原生Obsidian、切换旧启动器或迁移私人数据。此前原生RESOURCE_STOP/not_passed与system URI/not_exercised保持。新交付从已公开e605历史的文档保全子提交a6ad8f4c建立，同最终审定tree、无旧私人路径祖先；全历史扫描与远端同步结果以实际交付manifest/Git引用为准，不把旧候选的扫描通过或失败直接替代新链验收。
+
+
+GitHub实际验证收口：2eab7122e9aeb08bac093e8a34c3d50b3a11806c的[CI run37899479349](https://github.com/BryanYue/life-os/actions/runs/37899479349)全部success，npm ci/check/Chromium E2E/完整历史release:scan逐步通过。本地交付扫描128文件、index、12 HEAD祖先及提交元数据/正文与web-dist无配置命中。主目录和当前worktree源码同SHA、干净；远端空probe已保全并删除。旧含私人路径祖先仅留本机，main根/默认入口不变。本次随后仅将这些实际结果回写协调文档，业务源码/测试/锁文件不再改变，最终文档提交绑定以Git和.local/audits/consolidation-20261009/delivery.json为准。

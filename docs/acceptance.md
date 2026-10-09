@@ -65,7 +65,7 @@
 ## 交付和剩余条件
 
 - README 提供 Node 24/Mac clone/run、升级、备份/恢复和卸载说明；2026-10-03 Mac Node24/Chrome 已实际通过，最新候选和覆盖以 validation.md 为准；Safari和真实手机未验收。
-- 2026-10-09 核验远端业务分支仍为 e6056782，其最近 CI 含 check/E2E 但未含发布扫描；本地候选的 CI 工作流已加入完整历史发布扫描，待新交付链推送后在远端实际运行确认。本地候选已完成 Mac 双 review；其部分历史提交含个人机器路径，按[整合计划](tasks/local-v01/consolidation-plan.md)在 e6056782 之上建立脱敏交付链，完整检查与全历史扫描通过后才推送。没有部署/改默认分支，不宣称旧 hash/cache 已清除。
+- 2026-10-09 已完成安全业务分支同步：从e6056782建立同审定tree的干净交付2eab712，主checkout/当前worktree/GitHub业务ref一致；完整check297/297、Chrome43/43、audit0、本地全历史发布扫描和[远端CI](https://github.com/BryanYue/life-os/actions/runs/37899479349)实际通过。旧含个人机器路径的f76祖先仅留本机、不直接推送；空probe已保全清理。实际最终协调文档提交以Git及本机manifest为准，业务代码不变。没有部署/改默认main或切旧运行入口，不宣称已清除本机旧hash/cache。
 - 早期 bundle 停在 `c513c613`，本机迁移 bundle 停在 `5f1ff29`；这些旧包均未更新，不能当作当前版本。本轮按最新授权另交完整历史 bundle、补丁及 manifest，仅在云工作区生成，不自动上传；交付 SHA 和校验以新 manifest 为准。
 - 真实云连接器未实现，本轮只验证通用本地协议；Watch/Health 自动连接按用户要求延期。外部真实研究仓库未接入，仅使用虚构文件适配。
 - 不做任意 Schema 自动转换、部分字段双向编辑、不可信插件 OS 沙箱、自动设备身份撤销；文档明确这些能力边界。没有附件二进制管理、自动备份周期/永久清理承诺。
