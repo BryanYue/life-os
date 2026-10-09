@@ -11,3 +11,9 @@ coverage/
 /workspace-copy.json
 /vault/
 /archive/
+.local/
+/config.json
+/plugins/
+/backups/
+.obsidian/
+.DS_Store

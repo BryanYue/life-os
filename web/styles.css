@@ -3177,3 +3177,70 @@ main {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Structured learning forms share the existing responsive panel vocabulary. */
+.learning-loop {
+  overflow-wrap: anywhere;
+}
+.learning-loop details {
+  margin: 1rem 0;
+}
+.learning-loop summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.7rem;
+}
+.learning-loop form {
+  display: grid;
+  gap: 0.7rem;
+}
+.learning-loop .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+.learning-loop .form-row > * {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.learning-loop .loop-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  border-top: 1px solid var(--line, #e5e7eb);
+  padding: 0.8rem 0;
+}
+.learning-loop .loop-record p,
+.learning-loop .loop-record details {
+  flex-basis: 100%;
+  margin: 0.3rem 0;
+}
+.learning-loop .loop-item {
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.7rem;
+  min-width: 0;
+}
+.learning-loop pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.learning-loop .loop-comparison {
+  border-top: 1px solid var(--line, #e5e7eb);
+  padding: 0.8rem 0;
+}
+
+.obsidian-panel {
+  margin-bottom: 20px;
+}
+.obsidian-details code,
+.obsidian-note code {
+  overflow-wrap: anywhere;
+}
+.obsidian-note {
+  padding: 0 24px 12px;
+  flex-shrink: 0;
+}
+.obsidian-note p {
+  margin: 6px 0;
+}

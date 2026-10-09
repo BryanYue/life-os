@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { obsidianVault, obsidianNote } from "./obsidian.js";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { homedir } from "node:os";
 import { resolve, join, extname } from "node:path";
@@ -18,9 +19,23 @@ import {
   upgradeBuiltin,
   pendingBuiltinLanguageUpgrades,
   upgradeBuiltinLanguages,
+  learningLoopUpgradeStatus,
+  upgradeLearningLoop,
 } from "./builtin-upgrades.js";
+import {
+  configureLearning,
+  recordLearningSession,
+  recordAssessment,
+  recordLearningAttempts,
+  proposeLearningMethod,
+  actOnLearningMethod,
+  importTeacherSummary,
+  reviseTeacherSummary,
+  learningLoopReport,
+} from "./learning-loop.js";
 import { ProfileManager, type ProfileUpdate } from "./profile.js";
 import { assertRunnableWorkspace } from "./workspace-copy.js";
+import { loadLocalConfig } from "./config.js";
 import { LANGUAGE_CATALOG, validateLanguageCatalog } from "./languages.js";
 import {
   TemplateManager,
@@ -217,6 +232,41 @@ export function app(
     return { csrf };
   });
   a.get("/api/modules", () => store.modules());
+  a.get("/api/learning-loop/upgrade", () => learningLoopUpgradeStatus(store));
+  a.post("/api/learning-loop/upgrade", () => upgradeLearningLoop(store));
+  a.get("/api/learning-loop/report", () => learningLoopReport(store));
+  a.post<{ Body: Parameters<typeof configureLearning>[1] }>(
+    "/api/learning-loop/configure",
+    (req) => configureLearning(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof recordLearningSession>[1] }>(
+    "/api/learning-loop/sessions",
+    (req) => recordLearningSession(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof recordAssessment>[1] }>(
+    "/api/learning-loop/assessments",
+    (req) => recordAssessment(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof recordLearningAttempts>[1] }>(
+    "/api/learning-loop/attempts",
+    (req) => recordLearningAttempts(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof proposeLearningMethod>[1] }>(
+    "/api/learning-loop/methods",
+    (req) => proposeLearningMethod(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof actOnLearningMethod>[1] }>(
+    "/api/learning-loop/method-actions",
+    (req) => actOnLearningMethod(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof importTeacherSummary>[1] }>(
+    "/api/learning-loop/teacher-import",
+    (req) => importTeacherSummary(store, req.body),
+  );
+  a.post<{ Body: Parameters<typeof reviseTeacherSummary>[1] }>(
+    "/api/learning-loop/teacher-edit",
+    (req) => reviseTeacherSummary(store, req.body),
+  );
   a.get("/api/profile", () => profile.get());
   a.post<{ Body: { patch: ProfileUpdate; expectedRevision: number } }>(
     "/api/profile",
@@ -489,6 +539,10 @@ export function app(
       throw Error("Permission denied");
     return store.save(req.body, agent);
   });
+  a.get("/api/obsidian/vault", () => obsidianVault(store));
+  a.get<{ Params: { id: string } }>("/api/obsidian/notes/:id", (req) =>
+    obsidianNote(store, req.params.id),
+  );
   a.get("/api/status", () => ({
     mode: "仅本机 · 数据默认仓库外",
     sync: "本地双副本模拟；未接通云供应商",
@@ -537,6 +591,7 @@ if (isMain) {
     process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"),
   );
   assertRunnableWorkspace(root);
+  const config = loadLocalConfig(root);
   const store = new Store(root);
   const plugins = join(root, "plugins");
   mkdirSync(plugins, { recursive: true });
@@ -548,10 +603,6 @@ if (isMain) {
       );
     if (!store.modules().some((x) => x.id === m.id)) store.register(m);
   }
-  const configPath = join(root, "config.json");
-  const config = existsSync(configPath)
-    ? JSON.parse(readFileSync(configPath, "utf8"))
-    : {};
   const a = app(store, {
     agentToken: config.agentToken,
     agentModules: config.agentModules,

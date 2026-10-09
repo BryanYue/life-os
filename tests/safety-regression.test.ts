@@ -8,9 +8,15 @@ import {
   existsSync,
   renameSync,
   mkdirSync,
+  readdirSync,
+  statSync,
+  chmodSync,
+  symlinkSync,
 } from "node:fs";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { Store } from "../src/store.js";
+import { projectRoot } from "../src/paths.js";
 import { hash } from "../src/vault.js";
 import type { EntityInput } from "../src/types.js";
 const input = (extra: Partial<EntityInput> = {}): EntityInput => ({
@@ -378,6 +384,47 @@ test("restore rejects damaged conflict/history/cursor state before publishing an
     );
   } finally {
     restored?.close();
+    f.cleanup();
+  }
+});
+test("direct Store and restore callers cannot place data inside the repository", () => {
+  const f = setup();
+  const marker = "store-boundary-" + randomUUID();
+  const fresh = join(projectRoot, marker + "-new");
+  const existing = join(projectRoot, marker + "-existing");
+  const restored: Store[] = [];
+  try {
+    f.a.save({ entity: input(), expectedVersion: 0 });
+    const backup = f.a.backup();
+    mkdirSync(existing);
+    chmodSync(existing, 0o755);
+    symlinkSync(projectRoot, join(f.root, "repo-link"));
+    const before = readdirSync(projectRoot).sort();
+    const denied = /outside the repository/;
+    assert.throws(() => new Store(fresh), denied);
+    assert.throws(() => new Store(existing), denied);
+    assert.throws(
+      () => new Store(join(f.root, "repo-link", marker + "-linked")),
+      denied,
+    );
+    assert.throws(() => Store.restore(fresh, backup), denied);
+    assert.throws(() => Store.restore(join(fresh, "nested"), backup), denied);
+    assert.throws(
+      () => Store.restore(join(f.root, "repo-link", marker + "-r"), backup),
+      denied,
+    );
+    assert.deepEqual(readdirSync(projectRoot).sort(), before);
+    assert.deepEqual(readdirSync(existing), []);
+    assert.equal(statSync(existing).mode & 0o777, 0o755);
+    restored.push(Store.restore(join(f.root, "outside", "restored"), backup));
+    assert.equal(restored[0].list().length, 1);
+  } finally {
+    for (const s of restored) s.close();
+    rmSync(fresh, { recursive: true, force: true });
+    rmSync(existing, { recursive: true, force: true });
+    for (const name of readdirSync(projectRoot))
+      if (name.startsWith(marker))
+        rmSync(join(projectRoot, name), { recursive: true, force: true });
     f.cleanup();
   }
 });

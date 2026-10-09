@@ -203,6 +203,7 @@ test("已有示例插件：安装、权限与stdio双确认、表单推断、导
   await plugin.getByLabel("我理解网络和系统调用未隔离的风险").check();
   await plugin.getByRole("button", { name: "保存明确授权" }).click();
   await plugin.getByRole("button", { name: "启用插件" }).click();
+  await expect(plugin.locator(".plugin-state")).toContainText("已启用");
   await plugin
     .locator("summary")
     .filter({ hasText: "调用操作与手动导入" })

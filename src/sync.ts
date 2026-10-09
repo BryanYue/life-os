@@ -247,11 +247,38 @@ export function importBootstrap(
           JSON.stringify({ ...m, enabled: m.contract ? false : m.enabled }),
         );
     }
+    // Receipt rows and snapshots are adopted together; no self overlay is a prior write.
+    for (const [table, rows] of [
+      ["source_receipts", packet.sourceReceipts],
+      ["imports", packet.imports],
+    ] as const)
+      for (const row of rows) {
+        const old = s.db
+          .prepare(
+            "SELECT entity FROM " +
+              table +
+              " WHERE namespace=? AND source_id=?",
+          )
+          .get(row.namespace, row.source_id);
+        if (old && old.entity !== row.entity)
+          throw Error("Source identity already belongs to another record");
+        s.db
+          .prepare("INSERT OR REPLACE INTO " + table + " VALUES(?,?,?,?,?)")
+          .run(
+            row.namespace,
+            row.source_id,
+            row.revision,
+            ...(table === "imports"
+              ? [row.entity, row.digest]
+              : [row.digest, row.entity]),
+          );
+      }
     for (const record of packet.records)
       s.validate(
         record,
         (target) => incoming.get(target) ?? s.snapshot(target),
         true,
+        { historical: true, records: packet.records },
       );
     // Queue all snapshots before projecting notes, so references do not depend on array order.
     for (const record of packet.records) {
@@ -282,31 +309,6 @@ export function importBootstrap(
         throw Error("Conflicting baseline operation receipt");
       s.db.prepare("INSERT OR REPLACE INTO meta VALUES(?,?)").run(key, value);
     }
-    for (const [table, rows] of [
-      ["source_receipts", packet.sourceReceipts],
-      ["imports", packet.imports],
-    ] as const)
-      for (const row of rows) {
-        const old = s.db
-          .prepare(
-            "SELECT entity FROM " +
-              table +
-              " WHERE namespace=? AND source_id=?",
-          )
-          .get(row.namespace, row.source_id);
-        if (old && old.entity !== row.entity)
-          throw Error("Source identity already belongs to another record");
-        s.db
-          .prepare("INSERT OR REPLACE INTO " + table + " VALUES(?,?,?,?,?)")
-          .run(
-            row.namespace,
-            row.source_id,
-            row.revision,
-            ...(table === "imports"
-              ? [row.entity, row.digest]
-              : [row.digest, row.entity]),
-          );
-      }
     const saved = Number(
       s.db.prepare("SELECT seq FROM cursors WHERE device=?").get(packet.device)
         ?.seq ?? 0,

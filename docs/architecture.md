@@ -12,6 +12,8 @@ v0.1 使用单个 Fastify 进程提供生产静态资源与 API，React 按模�
 
 计划、事实、推断是不可互改的身份。状态可为草稿、进行中、完成、失败；记录保存发生时间、原始时区、创建/修改时间、修改者、来源和递增版本。发生时间接受日期或明确偏移的 ISO 时间；规划的开始/结束分钟表示该日期在所选时区的本地墙钟时间，不将未知真实日程推断成事实。周期规划逐日解析 IANA 时区：不存在的钟点拒绝；重复钟点要求用户在 offsets 中明确偏移。跨 DST 切换的窗口要求拆分，避免把墙钟分钟误当真实经过时间。事实使用明确偏移时间。
 
+数据根、Vault、profile、模板、插件授权、`config.json` 和密钥文件都在仓库外。`outsideRepository` 先解析已存在祖先的物理路径再判断，同时拒绝本机其他 Life OS 源码 checkout（祖先同时含 `.git`、`package.json` 名 `life-os` 与 `src/paths.ts`；只有 `.git` 的私人笔记仓库不受影响），`Store` 构造、`Store.restore`、profile、密钥/导出、工作区保全与服务/CLI 入口共用它，拒绝发生在创建目录或改权限之前。发布扫描另行检查私有文件类型、凭据、备份载荷、邮箱/提交身份与个人机器路径；`.gitignore` 只防误加，不作为隔离证明。职责矩阵见[整合计划](tasks/local-v01/consolidation-plan.md)。
+
 SQLite `audit` 仅保存对象、动作、版本、修改者和时间，不放私人正文。独立的 `operations` 与 `note_index` 是同步/恢复所需的私有历史，含正文快照，必须与数据库同等保护。本版没有历史过期清理或防篡改审计保证。
 
 ## Markdown 主版本
@@ -26,7 +28,7 @@ SQLite `audit` 仅保存对象、动作、版本、修改者和时间，不放�
 
 浏览器从本地入口取得 HttpOnly / SameSite=Strict 会话，写请求还需随机 CSRF token。检查 Host、Origin、跨站 Fetch 元数据；默认仅回环绑定。API 无 CORS 开放，无外部执行、交易、支付或消息发送接口。
 
-可选本机配置可授予独立 Agent token、模块范围及 `agentScope` 中的实体/类型/字段/正文/元数据权限。读取按同一核心规则投影，搜索只针对获准用户数据，隐藏字段与 noteHash 不经读取或同步旁路泄露。字段写入检查差异，`patchFields` 保留不可见字段、正文、来源与关系，并检查版本；不能修改或移除不可见关联。携带 Agent 凭据的请求不能申请人工会话；无效凭据不会回退到浏览器会话。Agent 只能访问专用读取/建议端点，不能调用普通写入、备份或外部执行；建议只创建 draft inference。默认没有启用任何 Agent token，也不连接付费模型服务。本机 UI 以当前系统用户为操作者，**不声称识别恶意本机程序或隔离能读取本机配置的代理**。
+可选本机配置可授予独立 Agent token、模块范围及 `agentScope` 中的实体/类型/字段/正文/元数据权限。`config.json` 是服务授权的唯一文件，服务与 CLI 在打开 `Store` 前经 `loadLocalConfig` 严格读取：只接受 `agentToken`、`agentModules`、`agentScope`、`syncModules`、`syncScope`，scope 复用权限校验，拒绝符号链接、FIFO、目录与超过 256 KB 的文件，错误不回显值；拼错的键不再被静默忽略成整模块访问。`config init` 只显式生成新的 0600 空授权文件、不覆盖，`config show` 脱敏令牌；修改后需重启服务，不做热加载。读取按同一核心规则投影，搜索只针对获准用户数据，隐藏字段与 noteHash 不经读取或同步旁路泄露。字段写入检查差异，`patchFields` 保留不可见字段、正文、来源与关系，并检查版本；不能修改或移除不可见关联。携带 Agent 凭据的请求不能申请人工会话；无效凭据不会回退到浏览器会话。Agent 只能访问专用读取/建议端点，不能调用普通写入、备份或外部执行；建议只创建 draft inference。默认没有启用任何 Agent token，也不连接付费模型服务。本机 UI 以当前系统用户为操作者，**不声称识别恶意本机程序或隔离能读取本机配置的代理**。
 
 声明式模块与完整插件共享 Module 契约。插件增加操作、权限、导入器、依赖、版本兼容和迁移；安装路径必须在仓库外。read/suggest 默认可授权，write 单独选择，external broker 永拒绝。安装、授权、启用、停用、升级、卸载分别持久化，升级撤销旧授权；卸载保留业务数据。
 
@@ -53,3 +55,12 @@ SQLite `audit` 仅保存对象、动作、版本、修改者和时间，不放�
 来源导入的 `(namespace, recordId, revision)` 与规范化内容摘要保留为修订收据。新来源默认实体 ID 由来源身份确定；同步接受来源操作时重建收据与当前修订，旧版本同步留下的缺失收据可从操作历史修复。普通人工编辑不会覆盖来源原始收据；同一修订携带不同内容被拒绝。同来源历史去重不以本机操作顺序推断来源版本大小。
 
 文件与 SQLite 没有共同事务；备份先捕获外部笔记变更，再在数据库事务内读取逻辑表与对应笔记，正文和 note_index 不一致时拒绝备份并要求重试。本版支持个人单服务使用，不承诺防御同权限恶意进程或跨进程文件竞争的所有窗口。
+
+
+## Obsidian 手动互操作与路径别名
+
+Life OS 的独立运行不取消 Obsidian 互操作：SQLite 保存实体字段/关系/版本，仓库外专用 Vault 的 Markdown 是正文。设置页只展示已运行服务的 Vault 路径；人类会话 GET `/api/obsidian/vault` 返回路径与 `obsidian://choose-vault`，GET `/api/obsidian/notes/:id` 仅从受管理 ID 解析当前文件，拒绝删除/缺失/重复/身份变更/符号链接。路径和 URI 不向 Agent 入口或受限能力暴露；不接受任意文件路径，不启动 shell，不写 Obsidian 配置，也不读其他 Vault。
+
+用户先在同机 Obsidian 注册此文件夹，再显式点击已保存笔记的 `open?path=` URI；值按官方 [URI 文档](https://help.obsidian.md/Extending+Obsidian/Obsidian+URI) 百分号编码。API 不保证安装或注册成功，跨设备浏览器不能用服务器路径打开本地笔记。外部编辑需在页面刷新后重新打开，已有版本/正文 hash 校验阻止旧表单覆盖；冲突保留与 `recover-note` 流程不变。没有后台 watcher、嵌入或自动同步。
+
+Mac `/var` 临时目录别名导致 Node24 permission 入口加载失败；plugin runner 在 mkdtemp 后使用 realpath，再以同一物理路径设置 cwd、entry 与单文件 `--allow-fs-read`。权限没有扩大，子进程/worker/其他文件仍拒绝；可信 stdio 网络未隔离的已有边界不变。

@@ -4,31 +4,35 @@
 
 **当前是可运行的 v0.1 本地版本，不是完整云端交付。** 八领域均提供创建、编辑、查询、关联、复盘与回收站，并有周期规划、健康对照、研究比较、精确财务等专项流程；同步以本地多副本手动交换验证。源码与示例不包含真实个人资料。
 
+语言模块可显式升级到 schema 4，使用结构化基线、练习/题目证据、新题复测和人工方法采纳；阅读与练习时长取并集，官方/模拟/练习分开，目标与教师原文修订保留历史。见[学习闭环契约与恢复](docs/learning-loop.md)。合成验收不证明学习效果，模块不自动连接语音、老师或提醒服务。
+
 ## 在 Mac 安装和运行
 
 需要 **Node.js 24.x**（开发验证版本 24.19.0）和 Git。`node:sqlite` 随 Node 提供，不需要单独编译 SQLite 扩展。首次安装依赖需要网络，安装和构建完成后日常运行不依赖网络。
 
-远程发布仍暂停，不能把 GitHub main 当作当前版本入口。已经获得并核验指定版本的迁移 bundle 后，可在不存在的新目录恢复（先用 `git bundle list-heads` 确认版本）：
+业务源码已在 GitHub `feat/local-life-os`；`main` 仍是初始 README，不是应用入口。2026-10-09 核验业务分支仍为 `e6056782`；本地整合候选的分支、交付链与剩余缺口见[整合计划](docs/tasks/local-v01/consolidation-plan.md)。可在不存在的新目录获取业务源码：
 
 ```bash
-git clone -b feat/local-life-os /实际迁移路径/life-os.bundle life-os
+git clone -b feat/local-life-os https://github.com/BryanYue/life-os.git life-os
 cd life-os
 npm ci
 npm run build
 npm start
 ```
 
-早期 `life-os-v0.1.bundle` 停在 `c513c613`；2026-10-03 Mac 使用的安全迁移包内 `life-os.bundle` 则停在 `5f1ff29`，两者不是同一版本。Mac 后续 UTC 日期修复为 `25a566f`；本轮分类/个人配置开发继续在本地分支上，两份旧 bundle 均不包含这些后续改动。本轮不生成新交付包、不推送。源码续接须包含最新提交及其历史；bundle 不包含运行数据库、Vault、个人配置或依赖目录。本机从 bundle clone 后的 origin 指向本地 bundle，不代表 GitHub 连接。
+早期 `life-os-v0.1.bundle` 停在 `c513c613`；2026-10-03 Mac 使用的安全迁移包内 `life-os.bundle` 则停在 `5f1ff29`，两者不是同一版本。Mac 后续 UTC 日期修复为 `25a566f`；分类/个人配置已包含于远端业务基线 `e6056782`，两份旧 bundle 均不包含这些后续改动。后续学习闭环、Obsidian 准备与恢复修复已完成 Mac 双 review，但其旧提交文档含个人机器路径，不直接推送；发布前在 `e6056782` 之上建立脱敏交付链并通过全历史 `npm run release:scan`。不自动上传 Library。源码续接须包含最新提交及其历史；bundle 不包含运行数据库、Vault、个人配置或依赖目录。本机从 bundle clone 后的 origin 指向本地 bundle，不代表 GitHub 连接。
 
-浏览器打开 **http://127.0.0.1:4310**。服务仅监听回环地址；关闭终端或 Ctrl+C 停止。不要将端口反向代理到公网。Mac 原生 Node24/Chrome 已有实测，最新版本与结果见[验证记录](docs/validation.md)，Safari/真实手机仍未验收。本机专用启动器位于 `$WORKSPACE/life-os-local-ops`，使用固定 Node24 和真实路径 TMPDIR；不要用全局 Node26 替代。独立演练可显式设置 `LIFE_OS_PORT=4311`，仍仅监听回环地址。
+浏览器打开 **http://127.0.0.1:4310**。服务仅监听回环地址；关闭终端或 Ctrl+C 停止。不要将端口反向代理到公网。Mac 原生 Node24/Chrome 已有实测，最新版本与结果见[验证记录](docs/validation.md)，Safari/真实手机仍未验收。本机专用启动器放在仓库外，使用固定 Node24 和真实路径 TMPDIR；不要用全局 Node26 替代。候选插件运行器已规范化临时目录物理路径，合成路径别名验证通过；Mac 原生复验前仍沿用既有专用启动器。独立演练可显式设置 `LIFE_OS_PORT=4311`，仍仅监听回环地址。
 
-默认数据目录为 `~/.life-os`，包含 `life.sqlite`、`vault/`、`plugins/`、本机 `config.json`，安装插件后还有 `plugin-state.json`。它们不在源码仓库中。要使用另外一个独立目录：
+默认数据目录为 `~/.life-os`，包含 `life.sqlite`、`vault/`、`plugins/`、可选的 `config.json`（Agent/同步授权，可用 `npm run cli -- config init [--agent-token]` 生成空授权的 0600 文件，`config show` 脱敏查看，改后重启服务），以及按需生成的 `personal-profile.json`、`templates.json`、`plugin-state.json`。数据目录必须在源码仓库外：服务、CLI 和直接调用 `Store`/`Store.restore` 都会拒绝仓库内路径（含经符号链接指回仓库的路径）以及本机其他 Life OS 源码 checkout 内的路径；`config.json` 含未知键、错误类型或不是普通文件时，服务和 CLI 在打开数据库前拒绝启动。要使用另外一个独立目录：
 
 ```bash
 LIFE_OS_HOME="$HOME/.life-os-demo" npm start
 ```
 
-其中的 `vault/` 子目录可作为 Obsidian Vault 打开；应用没有访问任何既有真实 Vault。只在其中编辑带 `life_id` 的笔记并保留该 ID。重命名/移动笔记可保留关联；删除、重复 ID、解析错误及外部并发改动会明确报错。
+其中的 `vault/` 子目录可作为 Obsidian Vault 打开；应用没有访问任何既有真实 Vault。设置页“与 Obsidian 使用同一份笔记”可查看此服务的专用 Vault 路径，并显式打开 Obsidian 仓库管理器。先在**同一台机器**选择“打开文件夹作为仓库”，注册该目录；应用不检测或修改 Obsidian 注册表，不自动合并旧 Vault。
+
+已保存记录的编辑窗口可准备“在 Obsidian 打开笔记”链接，按当前 `life_id` 解析移动后的文件；仅使用官方 [Obsidian URI](https://help.obsidian.md/Extending+Obsidian/Obsidian+URI) 的 `open?path=`，不携带正文或追加/覆盖命令。先保存表单，再外部编辑；返回后刷新并重新打开记录。保留 `life_id`、`life_module` 与未知 frontmatter，重命名/移动笔记保留关联；删除、重复 ID、解析错误、路径符号链接与外部并发改动明确报错。这是手动 Markdown 互操作，没有后台 watcher/完整实时同步或专用插件。云端合成往返不能替代 Mac Obsidian GUI 验收。
 
 ## 分类、个人选择与模板
 
@@ -122,9 +126,11 @@ npm run dev           # API 4310，开发界面 5173
 npm run check         # lint、typecheck、单元/集成、生产构建
 npx playwright install chromium  # 无系统 Chromium 时，仅测试需要
 npm run test:e2e      # 临时虚构数据库 + 生产服务 + 浏览器
-npm run release:scan  # 内容/暂存/可达历史和作者元数据检查
+npm run release:scan  # 工作区、暂存区、HEAD 可达完整历史/元数据、web-dist
 git config --local core.hooksPath .githooks  # 可选，本仓库提交前检查
 ```
+
+发布扫描须有完整历史（CI checkout 使用 `fetch-depth: 0`），在构建/浏览器检查后运行。它检查已跟踪及未忽略文件、暂存 blob、HEAD 可达提交正文及作者/提交者 noreply、存在时的 `web-dist`；不检查其他 ref、tag 注释、忽略的运行数据或仓库外文件。路径命中隐私规则时不读正文，拒绝符号链接/子模块/未合并索引；退出 0 表示无配置命中，1 表示发现，2 表示扫描不完整。模式不能证明无私人信息，发布仍需人工核对。
 
 测试数据放在系统临时目录，测试不会读取默认 `~/.life-os`。公开 CI 不读取用户的仓库外插件；插件测试只在临时目录复制仓库内虚构示例。可通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定已有 Chromium。
 

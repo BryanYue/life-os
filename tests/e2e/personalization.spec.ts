@@ -11,7 +11,7 @@ import type { CategoryResponse } from "../../src/categories.js";
 
 type IsolatedSpace = { store: Store; url: string };
 const test = base.extend<{ space: IsolatedSpace }>({
-  space: async ({}, use) => {
+  space: async ({ context }, use) => {
     const root = mkdtempSync(join(tmpdir(), "life-personalization-browser-"));
     const store = new Store(join(root, "data"));
     const server = app(store, { assets: resolve("web-dist"), port: 5174 });
@@ -19,6 +19,8 @@ const test = base.extend<{ space: IsolatedSpace }>({
       await server.listen({ host: "127.0.0.1", port: 5174 });
       await use({ store, url: "http://127.0.0.1:5174" });
     } finally {
+      // Release this test's browser connections before its private HTTP server.
+      await context.close();
       await server.close();
       store.close();
       rmSync(root, { recursive: true, force: true });

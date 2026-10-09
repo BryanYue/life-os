@@ -13,6 +13,7 @@ export type Module = {
   version: string;
   coreApi: 1;
   schemaVersion: number;
+  learningLoopProtocol?: 1;
   codeVisibility: "public" | "private";
   enabled: boolean;
   entityTypes: EntityType[];

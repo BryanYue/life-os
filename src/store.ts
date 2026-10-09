@@ -11,7 +11,7 @@ import {
   renameSync,
   rmdirSync,
 } from "node:fs";
-import { join, resolve, dirname, relative, isAbsolute } from "node:path";
+import { join, dirname, relative, isAbsolute } from "node:path";
 import { Ajv } from "ajv";
 import { builtins, validateModule, fieldsSchema } from "./modules.js";
 import { Vault, hash, splitNote } from "./vault.js";
@@ -24,8 +24,19 @@ import {
   syncEntityAllowed,
 } from "./permissions.js";
 import { mergeSnapshots } from "./merge.js";
+import { outsideRepository } from "./paths.js";
 import { validateSyncMetadata } from "./sync.js";
 import { compatibleVersion } from "./module-contract.js";
+import {
+  validateLoopSnapshot,
+  parseLoopData,
+  identityKey,
+  hasLearningLoop,
+  LOOP_TYPES,
+  type AttemptData,
+  type TeacherData,
+  type TeacherContract,
+} from "./learning-loop-contract.js";
 import {
   HUMAN,
   type Module,
@@ -177,7 +188,7 @@ export class Store {
     public root: string,
     options: { skipNoteRecovery?: boolean } = {},
   ) {
-    root = resolve(root);
+    root = outsideRepository(root);
     this.root = root;
     mkdirSync(root, { recursive: true, mode: 0o700 });
     if (lstatSync(root).isSymbolicLink())
@@ -457,6 +468,13 @@ export class Store {
     s: Snapshot,
     lookup: (id: string) => Snapshot | null = (id) => this.snapshot(id),
     allowDisabled = false,
+    context: {
+      prior?: Snapshot | null;
+      records?: Snapshot[];
+      historical?: boolean;
+      sourceImport?: boolean;
+      teacherResolution?: boolean;
+    } = {},
   ) {
     validateSnapshotShape(s);
     const m = this.module(s.module, !allowDisabled),
@@ -503,6 +521,31 @@ export class Store {
     const validate = ajv.compile(fieldsSchema(t));
     if (!validate(s.fields))
       throw Error("Invalid fields: " + ajv.errorsText(validate.errors));
+    if (hasLearningLoop(m))
+      validateLoopSnapshot(s, lookup, {
+        prior:
+          context.prior === undefined ? this.snapshot(s.id) : context.prior,
+        records:
+          context.records ??
+          (s.type === "learning-config"
+            ? this.db
+                .prepare(
+                  "SELECT id FROM entities WHERE module='languages' AND json_extract(json,'$.type')='learning-config'",
+                )
+                .all()
+                .map((row) => this.raw(String(row.id))!)
+            : []),
+        historical: context.historical,
+        sourceImport: context.sourceImport,
+        teacherResolution: context.teacherResolution,
+        moduleEnabled: (module) => this.module(module, false).enabled,
+        teacherContract: (contract) =>
+          this.preservedTeacherContract(
+            s.id,
+            contract,
+            context.sourceImport ?? false,
+          ),
+      });
     for (const [k, v] of Object.entries(s.fields)) {
       if (k === "parameters") {
         try {
@@ -583,6 +626,7 @@ export class Store {
   build(
     req: SaveRequest,
     cap: Capability,
+    context: { sourceImport?: boolean } = {},
   ): { value: Snapshot; base: Snapshot | null } {
     const input = req.entity,
       id = input.id ?? uuid(),
@@ -601,6 +645,88 @@ export class Store {
         base.kind !== input.kind)
     )
       throw Error("Identity and information kind are immutable");
+    if (
+      input.module === "languages" &&
+      input.type === "teacher-summary" &&
+      hasLearningLoop(this.module(input.module, false)) &&
+      !context.sourceImport
+    ) {
+      if (!base)
+        throw Error(
+          "New teacher summaries require the source import endpoint and receipt",
+        );
+      const prior = parseLoopData(
+          "teacher-summary",
+          base.fields.data,
+        ) as TeacherData,
+        proposed = parseLoopData(
+          "teacher-summary",
+          input.fields.data,
+        ) as TeacherData;
+      if (
+        prior.contract.source.revision !== proposed.contract.source.revision ||
+        (input.source?.mode === "import" &&
+          json(canonical(input.source)) !== json(canonical(base.source)))
+      )
+        throw Error(
+          "New teacher source revisions require the reviewed import endpoint; generic writes cannot alter source receipts",
+        );
+    }
+    if (
+      base?.module === "languages" &&
+      base.type === "attempt" &&
+      hasLearningLoop(this.module(base.module, false))
+    ) {
+      const prior = parseLoopData("attempt", base.fields.data) as AttemptData;
+      const proposed = parseLoopData(
+        "attempt",
+        input.fields.data,
+      ) as AttemptData;
+      if (
+        identityKey(prior.item) !== identityKey(proposed.item) ||
+        identityKey(prior.form) !== identityKey(proposed.form) ||
+        prior.sessionId !== proposed.sessionId ||
+        prior.assessmentId !== proposed.assessmentId
+      )
+        throw Error(
+          "Attempt identity/session/form immutable; exposure history is retained",
+        );
+    }
+    if (
+      base?.module === "languages" &&
+      base.type === "learning-config" &&
+      hasLearningLoop(this.module(base.module, false)) &&
+      json(canonical(parseLoopData("learning-config", base.fields.data))) !==
+        json(canonical(parseLoopData("learning-config", input.fields.data)))
+    )
+      throw Error(
+        "Learning configurations are immutable; append a new configuration to preserve target history",
+      );
+    if (
+      base?.module === "languages" &&
+      base.type === "teacher-summary" &&
+      hasLearningLoop(this.module(base.module, false))
+    ) {
+      const prior = parseLoopData(
+        "teacher-summary",
+        base.fields.data,
+      ) as TeacherData;
+      const proposed = parseLoopData(
+        "teacher-summary",
+        input.fields.data,
+      ) as TeacherData;
+      if (
+        prior.contract.source.namespace !==
+          proposed.contract.source.namespace ||
+        prior.contract.source.id !== proposed.contract.source.id ||
+        (prior.contract.source.revision === proposed.contract.source.revision &&
+          json(canonical(prior.contract)) !==
+            json(canonical(proposed.contract)))
+      )
+        throw Error(
+          "Teacher source/original contract immutable within a revision; edit summary only or import a reviewed new source revision",
+        );
+    }
     if ((base?.version ?? 0) !== req.expectedVersion)
       throw Error("Version conflict");
     if (base && req.expectedNoteHash !== hash(base.markdown))
@@ -638,10 +764,14 @@ export class Store {
         base?.markdown,
       ),
     };
-    this.validate(value);
+    this.validate(value, undefined, false, context);
     return { value, base };
   }
-  saveInTransaction(req: SaveRequest, cap: Capability) {
+  saveInTransaction(
+    req: SaveRequest,
+    cap: Capability,
+    context: { sourceImport?: boolean } = {},
+  ) {
     const opId = req.operationId ?? uuid();
     if (!validId(opId)) throw Error("Invalid operation ID");
     this.permit(
@@ -668,7 +798,7 @@ export class Store {
         throw Error("Permission denied: entity scope");
       return String(prior.entity);
     }
-    const { value, base } = this.build(req, cap);
+    const { value, base } = this.build(req, cap, context);
     const changedRelations = [
       ...value.relations,
       ...(base?.relations ?? []),
@@ -788,7 +918,209 @@ export class Store {
         .prepare("INSERT OR REPLACE INTO imports VALUES(?,?,?,?,?)")
         .run(src.namespace, src.recordId, src.revision, op.entityId, digest);
   }
-  importSource(input: EntityInput, cap = HUMAN) {
+  pendingTeacherSource(
+    entityId: string,
+    contract: TeacherContract,
+  ): Operation | null {
+    for (const row of this.db
+      .prepare(
+        "SELECT json FROM conflicts WHERE json_extract(json,'$.operation.entityId')=?",
+      )
+      .all(entityId)) {
+      const op = parse<Conflict>(row)!.operation;
+      validateOperationShape(op);
+      if (
+        op.value.module !== "languages" ||
+        op.value.type !== "teacher-summary" ||
+        op.value.source.mode !== "import" ||
+        !sourceOperationIds(op.value.source).includes(op.id)
+      )
+        continue;
+      const original = (
+        parseLoopData("teacher-summary", op.value.fields.data) as TeacherData
+      ).contract;
+      if (
+        original.source.namespace === contract.source.namespace &&
+        original.source.id === contract.source.id &&
+        original.source.revision === contract.source.revision
+      )
+        return op;
+    }
+    return null;
+  }
+  preservedTeacherContract(
+    entityId: string,
+    contract: TeacherContract,
+    sourceImport: boolean,
+  ) {
+    const receipt = this.db
+      .prepare(
+        "SELECT * FROM source_receipts WHERE namespace=? AND source_id=? AND revision=?",
+      )
+      .get(
+        "learning-teacher:" + contract.source.namespace,
+        contract.source.id,
+        String(contract.source.revision),
+      );
+    const pending = this.pendingTeacherSource(entityId, contract);
+    if (
+      (!receipt && !sourceImport && !pending) ||
+      (receipt && receipt.entity !== entityId)
+    )
+      throw Error(
+        "Teacher source revision requires its matching source receipt",
+      );
+    // A retained conflict can prove a pending edit's original without accepting
+    // the source into receipts/operations (which would affect bootstrap replay).
+    let preserved: TeacherContract | null = pending
+      ? (
+          parseLoopData(
+            "teacher-summary",
+            pending.value.fields.data,
+          ) as TeacherData
+        ).contract
+      : null;
+    for (const row of this.db
+      .prepare(
+        "SELECT json FROM operations WHERE json_extract(json,'$.entityId')=? ORDER BY seq",
+      )
+      .all(entityId)) {
+      const op = parse<Operation>(row)!;
+      for (const snapshot of [op.base, op.value]) {
+        if (!snapshot || snapshot.type !== "teacher-summary") continue;
+        let previous: TeacherContract;
+        try {
+          previous = (
+            parseLoopData(
+              "teacher-summary",
+              snapshot.fields.data,
+            ) as TeacherData
+          ).contract;
+        } catch {
+          continue;
+        }
+        if (
+          previous.source.namespace !== contract.source.namespace ||
+          previous.source.id !== contract.source.id ||
+          previous.source.revision !== contract.source.revision
+        )
+          continue;
+        preserved ??= previous;
+        if (
+          snapshot === op.value &&
+          receipt &&
+          String(receipt.digest).startsWith("v2:") &&
+          sourceOperationIds(snapshot.source).includes(op.id) &&
+          sourceDigest(snapshot) !== receipt.digest
+        )
+          throw Error(
+            "Teacher source receipt digest differs from its import operation",
+          );
+      }
+    }
+    return preserved;
+  }
+  teacherResolutionSource(op: Operation): Operation | null {
+    if (
+      !op.base ||
+      !op.resolves?.length ||
+      op.value.module !== "languages" ||
+      op.value.type !== "teacher-summary" ||
+      !hasLearningLoop(this.module("languages", false))
+    )
+      return null;
+    const candidates = op.resolves
+      .map(
+        (id) =>
+          parse<Operation>(
+            this.db.prepare("SELECT json FROM operations WHERE id=?").get(id),
+          ) ??
+          parse<Conflict>(
+            this.db.prepare("SELECT json FROM conflicts WHERE id=?").get(id),
+          )?.operation,
+      )
+      .filter(
+        (value): value is Operation =>
+          !!value && value.entityId === op.entityId,
+      );
+    if (
+      !candidates.some(
+        (value) => json(canonical(value.value)) === json(canonical(op.base)),
+      )
+    )
+      return null;
+    const baseContract = (
+      parseLoopData("teacher-summary", op.base.fields.data) as TeacherData
+    ).contract;
+    const source = candidates.find(
+      (value) =>
+        value.value.source.mode === "import" &&
+        sourceOperationIds(value.value.source).includes(value.id) &&
+        json(
+          canonical(
+            (
+              parseLoopData(
+                "teacher-summary",
+                value.value.fields.data,
+              ) as TeacherData
+            ).contract,
+          ),
+        ) === json(canonical(baseContract)),
+    );
+    if (!source) return null;
+    const state = (snapshot: Snapshot) => {
+      return json(
+        canonical({ ...snapshot, version: 0, updatedAt: "", actor: "" }),
+      );
+    };
+    if (
+      !candidates.some((candidate) =>
+        [candidate.base, candidate.value].some(
+          (snapshot) => snapshot && state(snapshot) === state(op.value),
+        ),
+      )
+    )
+      return null;
+    return source;
+  }
+  retainTeacherResolutionSource(op: Operation) {
+    validateOperationShape(op);
+    this.validate(op.value, undefined, false, {
+      prior: op.base,
+      sourceImport: true,
+    });
+    this.db
+      .prepare("INSERT OR IGNORE INTO operations(id,json) VALUES(?,?)")
+      .run(op.id, json(op));
+    this.rememberSourceOperation(op);
+  }
+  acceptTeacherResolutionHead(value: Snapshot) {
+    const contract = (
+      parseLoopData("teacher-summary", value.fields.data) as TeacherData
+    ).contract;
+    const namespace = "learning-teacher:" + contract.source.namespace;
+    const receipt = this.db
+      .prepare(
+        "SELECT * FROM source_receipts WHERE namespace=? AND source_id=? AND revision=?",
+      )
+      .get(namespace, contract.source.id, String(contract.source.revision));
+    if (!receipt || receipt.entity !== value.id)
+      throw Error("Teacher resolution requires its preserved source receipt");
+    this.db
+      .prepare("INSERT OR REPLACE INTO imports VALUES(?,?,?,?,?)")
+      .run(
+        namespace,
+        contract.source.id,
+        String(contract.source.revision),
+        value.id,
+        receipt.digest,
+      );
+  }
+  importSource(
+    input: EntityInput,
+    cap = HUMAN,
+    reviewed: { expectedVersion?: number; expectedNoteHash?: string } = {},
+  ) {
     const src = input.source;
     if (!src || src.mode === "manual")
       throw Error("Importer requires a source identity");
@@ -827,6 +1159,38 @@ export class Store {
         .prepare("SELECT * FROM imports WHERE namespace=? AND source_id=?")
         .get(src.namespace, src.recordId);
       const old = prior ? this.get(String(prior.entity), cap) : null;
+      if (
+        old?.module === "languages" &&
+        hasLearningLoop(this.module(old.module, false)) &&
+        (LOOP_TYPES.includes(old.type) ||
+          (old.type === "practice" && old.fields.learningData !== undefined)) &&
+        old.deleted
+      )
+        throw Error(
+          "Learning source record deleted: restore explicitly before a new source revision",
+        );
+      if (
+        input.module === "languages" &&
+        input.type === "teacher-summary" &&
+        hasLearningLoop(this.module(input.module, false)) &&
+        old
+      ) {
+        const proposed = parseLoopData(
+          "teacher-summary",
+          input.fields.data,
+        ) as TeacherData;
+        if (proposed.contract.source.revision <= Number(prior!.revision))
+          throw Error(
+            "Teacher revision conflict: an unrecognized older revision cannot overwrite history",
+          );
+        if (
+          reviewed.expectedVersion !== old.version ||
+          reviewed.expectedNoteHash !== old.noteHash
+        )
+          throw Error(
+            "Teacher revision conflict: review the current summary, then provide its version and Markdown hash through the teacher import endpoint",
+          );
+      }
       const operationId = sourceOperationIds(src)[0];
       const savedId = this.saveInTransaction(
         {
@@ -842,6 +1206,7 @@ export class Store {
           operationId,
         },
         cap,
+        { sourceImport: true },
       );
       this.rememberSourceOperation(
         parse<Operation>(
@@ -879,7 +1244,20 @@ export class Store {
           updatedAt: now(),
           actor: "markdown-editor",
         };
-        this.validate(value, undefined, true);
+        try {
+          this.validate(value, undefined, true);
+        } catch (error) {
+          if (
+            value.module === "languages" &&
+            value.type === "teacher-summary" &&
+            hasLearningLoop(this.module(value.module, false))
+          )
+            throw Error(
+              `Teacher note ${value.id}: ${error instanceof Error ? error.message : String(error)}。` +
+                "外部修改未导入。先保留外部副本，再对同一数据目录运行 CLI learning-loop report 查看受保护原文；根据上述错误核对并修复笔记后重试。",
+            );
+          throw error;
+        }
         const sequence = Number(
           this.db
             .prepare("SELECT COALESCE(MAX(seq),0)+1 AS n FROM operations")
@@ -1050,7 +1428,18 @@ export class Store {
             op.resolves.some((id) => !validId(id)))
         )
           throw Error("Invalid conflict resolution");
-        this.validate(op.value);
+        const resolutionSource = this.teacherResolutionSource(op);
+        if (resolutionSource)
+          this.retainTeacherResolutionSource(resolutionSource);
+        const sourceImport =
+          !!resolutionSource ||
+          (op.value.source.mode === "import" &&
+            sourceOperationIds(op.value.source).includes(op.id));
+        this.validate(op.value, undefined, false, {
+          prior: op.base,
+          sourceImport,
+          teacherResolution: !!resolutionSource,
+        });
         let merged = mergeSnapshots(op.base, local, op.value);
         if (merged) {
           merged = {
@@ -1059,15 +1448,36 @@ export class Store {
             updatedAt: now(),
             body: splitNote(merged.markdown).body,
           };
-          this.validate(merged);
+          this.validate(merged, undefined, false, {
+            sourceImport,
+            teacherResolution: !!resolutionSource,
+          });
           this.writeSnapshot(merged, op, "sync", "sync");
           this.rememberSourceOperation(op);
-          for (const resolved of op.resolves ?? [])
+          for (const resolved of op.resolves ?? []) {
+            const rejected = parse<Conflict>(
+              this.db
+                .prepare(
+                  "SELECT json FROM conflicts WHERE id=? AND json_extract(json,'$.operation.entityId')=?",
+                )
+                .get(resolved, op.entityId),
+            );
+            if (rejected) {
+              // Preserve rejected operations so packet retries cannot replay a discarded draft.
+              this.db
+                .prepare(
+                  "INSERT OR IGNORE INTO operations(id,json) VALUES(?,?)",
+                )
+                .run(rejected.operation.id, json(rejected.operation));
+              this.rememberSourceOperation(rejected.operation);
+            }
             this.db
               .prepare(
                 "DELETE FROM conflicts WHERE id=? AND json_extract(json,'$.operation.entityId')=?",
               )
               .run(resolved, op.entityId);
+          }
+          if (resolutionSource) this.acceptTeacherResolutionHead(merged);
           applied++;
         } else {
           this.db.prepare("INSERT INTO conflicts VALUES(?,?)").run(
@@ -1131,14 +1541,37 @@ export class Store {
       .all(c.operation.entityId)
       .map((r) => String(r.id));
     ids.push(c.operation.id);
+    const pendingSource =
+      c.operation.value.module === "languages" &&
+      c.operation.value.type === "teacher-summary" &&
+      hasLearningLoop(this.module("languages", false))
+        ? this.pendingTeacherSource(
+            c.operation.entityId,
+            (
+              parseLoopData(
+                "teacher-summary",
+                c.operation.value.fields.data,
+              ) as TeacherData
+            ).contract,
+          )
+        : null;
+    if (pendingSource && !ids.includes(pendingSource.id))
+      ids.push(pendingSource.id);
     const value = {
       ...selected,
       version: (current?.version ?? 0) + 1,
       updatedAt: now(),
       actor: "local-user",
     };
-    this.validate(value);
     this.transaction(() => {
+      const sourceImport =
+        c.operation.value.module === "languages" &&
+        c.operation.value.type === "teacher-summary" &&
+        hasLearningLoop(this.module("languages", false)) &&
+        c.operation.value.source.mode === "import" &&
+        sourceOperationIds(c.operation.value.source).includes(c.operation.id);
+      if (sourceImport) this.retainTeacherResolutionSource(c.operation);
+      else if (pendingSource) this.retainTeacherResolutionSource(pendingSource);
       const seq = Number(
         this.db
           .prepare("SELECT COALESCE(MAX(seq),0)+1 AS n FROM operations")
@@ -1154,11 +1587,17 @@ export class Store {
         at: now(),
         resolves: ids,
       };
+      const resolutionSource = this.teacherResolutionSource(op);
+      this.validate(value, undefined, false, {
+        sourceImport: !!resolutionSource,
+        teacherResolution: !!resolutionSource,
+      });
       this.writeSnapshot(value, op, "local-user", "resolve-conflict");
       this.db
         .prepare("INSERT OR IGNORE INTO operations(id,json) VALUES(?,?)")
         .run(c.operation.id, json(c.operation));
       this.rememberSourceOperation(c.operation);
+      if (resolutionSource) this.acceptTeacherResolutionHead(value);
       this.db.prepare("DELETE FROM conflicts WHERE id=?").run(id);
     });
     return this.get(value.id)!;
@@ -1200,7 +1639,7 @@ export class Store {
     }
   }
   static restore(root: string, b: { payload: string; sha256: string }) {
-    root = resolve(root);
+    root = outsideRepository(root);
     if (existsSync(root)) throw Error("Restore requires a new destination");
     if (hash(b.payload) !== b.sha256) throw Error("Backup checksum mismatch");
     const data = JSON.parse(b.payload);
@@ -1307,7 +1746,7 @@ export class Store {
           const value = store.snapshot(String(row.id))!;
           if (value.id !== row.id || value.module !== row.module)
             throw Error("Backup entity identity mismatch");
-          store.validate(value, undefined, true);
+          store.validate(value, undefined, true, { historical: true });
           for (const r of value.relations)
             expectedEdges.push(json([value.id, r.target, r.type]));
         }
@@ -1323,7 +1762,7 @@ export class Store {
             .all())
             if (!entityIds.has(String(row.entity)))
               throw Error("Backup contains orphan references");
-        const historical = (snapshot: Snapshot) => {
+        const historical = (snapshot: Snapshot, sourceImport = false) => {
           validateSnapshotShape(snapshot);
           const module = store.module(snapshot.module, false);
           if (snapshot.schemaVersion > module.schemaVersion)
@@ -1331,12 +1770,20 @@ export class Store {
           // Older field schemas may no longer be installed. Preserve their
           // readable envelopes; current-schema snapshots get full validation.
           if (snapshot.schemaVersion === module.schemaVersion)
-            store.validate(snapshot, undefined, true);
+            store.validate(snapshot, undefined, true, {
+              historical: true,
+              sourceImport,
+            });
         };
         const operation = (op: Operation, id: unknown) => {
           validateOperationShape(op);
           if (op.id !== id) throw Error("Invalid backup operation identity");
-          historical(op.value);
+          const sourceImport =
+            op.value.module === "languages" &&
+            op.value.type === "teacher-summary" &&
+            op.value.source.mode === "import" &&
+            sourceOperationIds(op.value.source).includes(op.id);
+          historical(op.value, sourceImport);
           if (op.base) historical(op.base);
         };
         for (const row of store.db

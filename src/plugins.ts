@@ -953,7 +953,11 @@ export class PluginManager {
     const code = readFileSync(this.externalFile(p.entryPath));
     if (digest(code) !== p.entryHash)
       throw Error("Plugin code changed; upgrade and reauthorize");
-    const directory = mkdtempSync(join(tmpdir(), "life-plugin-run-"));
+    // Node permission checks resolve the entry path. Canonicalize the temporary
+    // directory too (macOS /var -> /private/var), retaining the single-file grant.
+    const directory = realpathSync(
+      mkdtempSync(join(tmpdir(), "life-plugin-run-")),
+    );
     const entry = join(directory, "plugin.mjs");
     writeFileSync(entry, code, { mode: 0o600, flag: "wx" });
     const payload = json({

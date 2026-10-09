@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -50,7 +51,10 @@ test("private workspace preservation cannot publish inside the public repository
 });
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "life-workspace-copy-test-"));
+  // Canonicalize only the fixture root; deliberate symlink inputs remain rejected.
+  const root = realpathSync(
+    mkdtempSync(join(tmpdir(), "life-workspace-copy-test-")),
+  );
   const source = join(root, "source"),
     target = join(root, "target");
   mkdirSync(source);

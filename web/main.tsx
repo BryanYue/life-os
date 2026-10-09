@@ -20,7 +20,10 @@ import { PeriodPlanner, ReviewPanel } from "./PeriodPlanner.js";
 import { SyncTools } from "./SyncTools.js";
 import { ReadingWorkspace } from "./ReadingWorkspace.js";
 import { LearningTasks } from "./LearningTasks.js";
+import { LearningLoop } from "./LearningLoop.js";
 import { AdvicePanel } from "./AdvicePanel.js";
+import type { SpecialistProps } from "./SpecialistPanels.js";
+import { ObsidianPanel, ObsidianNoteLink } from "./ObsidianPanel.js";
 import { ExpressionStudio } from "./ExpressionStudio.js";
 import { PluginTools } from "./PluginTools.js";
 import { PersonalizationSettings } from "./PersonalizationSettings.js";
@@ -182,9 +185,16 @@ function App() {
     return data as T;
   }
   async function refresh(token = csrf) {
+    // Conflict inspection captures external Markdown edits and advances versions.
+    // Finish it before listing entities, so refreshed editor snapshots are current.
+    const conflicts = await request<Conflict[]>(
+      "/api/conflicts",
+      undefined,
+      token,
+    );
     const results = await Promise.all([
       request<Entity[]>("/api/entities?includeDeleted=1", undefined, token),
-      request<Conflict[]>("/api/conflicts", undefined, token),
+      Promise.resolve(conflicts),
       request<Record<string, unknown>>("/api/status", undefined, token),
       request<Module[]>("/api/modules", undefined, token),
       request<PersonalProfile>("/api/profile", undefined, token),
@@ -597,9 +607,11 @@ function App() {
           {error && (
             <div className="message error" role="alert">
               <span>{error}</span>
-              <button className="text-button" onClick={() => setError("")}>
-                关闭
-              </button>
+              {ready && (
+                <button className="text-button" onClick={() => setError("")}>
+                  关闭
+                </button>
+              )}
             </div>
           )}
           {notice && (
@@ -610,10 +622,10 @@ function App() {
           {!ready ? (
             <div className="empty-state">
               <span className="empty-symbol">◌</span>
-              <h2>{error ? "本地服务暂不可用" : "正在打开你的空间"}</h2>
+              <h2>{error ? "暂时无法读取本地空间" : "正在打开你的空间"}</h2>
               <p>
                 {error
-                  ? "请确认本地服务正在运行。界面会保留错误信息。"
+                  ? "请根据上方错误检查记录或本地服务，再重新连接。界面会保留错误信息。"
                   : "正在读取模块和本机记录…"}
               </p>
               {error && (
@@ -857,6 +869,7 @@ function App() {
                             ["tasks", "清单与提醒"],
                             ["expression", "表达练习"],
                             ["advice", "依据与建议"],
+                            ["loop", "量化学习闭环"],
                           ].map(([id, title]) => (
                             <button
                               key={id}
@@ -880,6 +893,9 @@ function App() {
                         </div>
                         <div hidden={learningView !== "advice"}>
                           <AdvicePanel {...readingProps} />
+                        </div>
+                        <div hidden={learningView !== "loop"}>
+                          <LearningLoop {...readingProps} />
                         </div>
                       </div>
                     )}
@@ -1193,6 +1209,7 @@ function App() {
                       onSaveProfile={saveProfile}
                     />
                   )}
+                  <ObsidianPanel request={request} />
                   <div className="settings-grid">
                     <section className="panel">
                       <span className="panel-symbol">⌂</span>
@@ -1452,6 +1469,7 @@ function App() {
           }
           module={editor.module}
           existing={editor.entity}
+          request={request}
           initialType={editor.initialType}
           initialStatus={editor.initialStatus}
           review={editor.review}
@@ -1619,6 +1637,7 @@ function Comparison({
 
 type Run = (work: () => Promise<void>, message?: string) => Promise<void>;
 function Editor({
+  request,
   module,
   initialType,
   initialStatus,
@@ -1633,6 +1652,7 @@ function Editor({
   onDelete,
   run,
 }: {
+  request: SpecialistProps["request"];
   module: Module;
   initialType?: string;
   initialStatus?: Entity["status"];
@@ -1750,6 +1770,9 @@ function Editor({
             ×
           </button>
         </div>
+        {existing && !existing.deleted && (
+          <ObsidianNoteLink id={existing.id} request={request} />
+        )}
         <form onSubmit={submit}>
           <div className="editor-body">
             <fieldset className="editor-fields" disabled={!module.enabled}>

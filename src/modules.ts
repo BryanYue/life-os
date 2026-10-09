@@ -313,6 +313,60 @@ export function withLanguageCodes(current: Module): Module {
 export const languageBuiltins = builtins
   .filter((module) => ["learning", "languages"].includes(module.id))
   .map(withLanguageCodes);
+/** Opt-in additive schema: never replace an installation's existing lists. */
+export function withLearningLoop(current: Module): Module {
+  if (current.id !== "languages" || current.schemaVersion !== 3)
+    throw Error("Learning loop requires languages schema 3 to 4");
+  const next = structuredClone(current);
+  const additions = [
+    t(
+      "learning-config",
+      "量化学习目标配置",
+      f("language", "语言", "text", true),
+      f("data", "学习目标配置 JSON", "text", true),
+    ),
+    t(
+      "assessment",
+      "学习测评",
+      f("language", "语言", "text", true),
+      f("data", "测评数据 JSON", "text", true),
+    ),
+    t(
+      "attempt",
+      "题目作答",
+      f("language", "语言", "text", true),
+      f("data", "作答数据 JSON", "text", true),
+    ),
+    t(
+      "teacher-summary",
+      "教师摘要",
+      f("language", "语言", "text", true),
+      f("data", "教师来源与摘要 JSON", "text", true),
+    ),
+    t(
+      "method-adjustment",
+      "学习方法调整",
+      f("language", "语言", "text", true),
+      f("data", "方法调整 JSON", "text", true),
+    ),
+  ];
+  if (
+    additions.some((type) => next.entityTypes.some((old) => old.id === type.id))
+  )
+    throw Error("Learning loop type collision; custom manifest preserved");
+  const practice = next.entityTypes.find((type) => type.id === "practice");
+  if (
+    !practice ||
+    practice.fields.some((field) => field.key === "learningData")
+  )
+    throw Error("Learning loop practice field collision or missing type");
+  practice.fields.push(f("learningData", "量化练习关联 JSON"));
+  next.entityTypes.push(...additions);
+  next.schemaVersion = 4;
+  next.learningLoopProtocol = 1;
+  if (next.version === "0.3.0") next.version = "0.4.0";
+  return next;
+}
 export function validateModule(m: Module) {
   if (m?.contract) validateContract(m);
   if (
@@ -323,6 +377,10 @@ export function validateModule(m: Module) {
     m.coreApi !== 1 ||
     !Number.isSafeInteger(m.schemaVersion) ||
     m.schemaVersion < 1 ||
+    (m.learningLoopProtocol !== undefined &&
+      (m.id !== "languages" ||
+        m.schemaVersion !== 4 ||
+        m.learningLoopProtocol !== 1)) ||
     !["public", "private"].includes(m.codeVisibility) ||
     typeof m.enabled !== "boolean" ||
     !Array.isArray(m.entityTypes) ||

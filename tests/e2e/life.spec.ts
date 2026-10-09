@@ -31,7 +31,20 @@ async function create(
   await d.getByLabel("记录性质", { exact: true }).selectOption(kind);
   for (const f of fields.filter((f) => f.required)) {
     const el = d.getByLabel(f.label, { exact: false });
-    if (f.type === "select") await el.selectOption(f.options![0]);
+    if (
+      f.key === "language" &&
+      (await el.evaluate((element) => element.tagName === "SELECT"))
+    ) {
+      const firstLanguage = await el.evaluate(
+        (element) =>
+          Array.from((element as HTMLSelectElement).options).find(
+            (option) => option.value && !option.disabled,
+          )?.value,
+      );
+      expect(firstLanguage).toBeTruthy();
+      await el.selectOption(firstLanguage!);
+      await expect(el).not.toHaveValue("");
+    } else if (f.type === "select") await el.selectOption(f.options![0]);
     else
       await el.fill(
         f.type === "number"

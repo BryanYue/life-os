@@ -1,6 +1,6 @@
 # local-v01 任务进度
 
-更新时间：2026-10-02。负责人：主代理；目录 `/workspace/life-os`，分支 `feat/local-life-os`。
+更新时间：2026-10-09（Asia/Shanghai）。负责人：主代理 Codex；当前整合目录 `$CODEX_HOME/worktrees/af76/life-os`，分支 `codex/lifeos-consolidation-20261009`。以下早期章节保留历史语义；当前约定见文末 2026-10-09 整合阶段。
 
 ## 当前约定
 
@@ -117,6 +117,149 @@ Mac arm64/macOS26.6.2，项目独立Node24.19.0/npm11.17.0，npm ci完成且审�
 
 本轮以本地提交交付，提交身份使用指定noreply；最终SHA与验证日志位于 `$WORKSPACE/life-os-local-ops/personalization-20261003/result.json`。主代理已完成整合、验收与文档，当前无已知阻断本轮本地验收的问题；真实数据切换、真实云连接器、Watch与GitHub写入均不在已完成范围。README及sync/modules已分清源码历史、个人配置、真实数据和旧bundle版本，未推送、改remote/认证或生成交付包。
 
+
+## 2026-10-04 云开发 B → A 及授权扩展
+
+主代理为候选唯一writer，目录/workspace/life-os；只读remote核验feat/local-life-os=e6056782b30e4873197f289881b781549eb3918d，main=7ebb56b9初始README，工作树干净。fetch后建立feat/cloud-release-learning-20261004。已读项目AGENTS与GLOBAL-AGENTS；仓库代码任务无相关外部产品skill需要调用。
+
+受保护范围：先B扫描+CI/文档，再A结构化基线/测评、练习题卷身份/首重复/错项证据/唯一时长/幂等、可比新题复测、人工方法采纳、老师手工/文件来源原文修订；复用八领域和现有目标/阅读/表达。650/700可配不覆盖旧目标，20–30分钟/1–4周只是候选；官方/模拟/练习分开，无未经核实换分/官方题/聊天发音评分/自动提醒/API。未知字段与旧数据、历史、删除撤销、冲突恢复必须保留。以合成数据与实际测试验收，不声称真实学习效果。
+
+新增授权：B→A后加入Obsidian最小接入及合成往返、Mac插件tmpdir别名通用修复；研究adapter等待另任务方案，真实云sync供应商/凭据未定只做不依赖部分。禁止私人Vault读取/合并、部署/默认分支改动/强推/付费/本地4310或4311切换；Watch延期，Safari/phone硬件、真实数据schema与主入口留Mac。
+
+最新发布顺序覆盖中间短暂push授权：**没有push任何新成果**；本地commit并准备完整bundle或patch+manifest，不自动上传Library。先完成可交回Mac，不等另一任务；Mac项目内原生Codex与既有cloud/Claude workflow双review→修复→复验后才push最终GitHub，云端再pull核完整SHA。
+
+B合成旧版3/9、新版10/10；check237/237（新增祖先symlink回归前）、lint/typecheck/build通过。主代理将补全量。CI新增完整历史扫描；旧CI37170415014个人connector核验success，不含扫描。首次npm缓存权限失败已用/tmp独立缓存解决。只读审查派发请求gpt-6.1-sol/high/fork none，返回task /root/gpt6_1_sol_high__release_review，显式请求值；有效型号未独立回显。其发现祖先symlink越界已修复等待复核；原始合成证据/tmp/life-os-evidence及审查者独有/tmp。当前B收口后开始A，保护历史失败不擦除。
+
+B已完成：最终check241/241（228+13）、lint/typecheck/build，Chromium35/35，release:scan无配置命中。独立审查发现均已关闭（祖先symlink、replace/graft、目录删除）。原始日志/tmp/life-os-evidence/check-b-final.log、e2e-b.log、scan-before/after.log、release-b.log。主代理准备B本地commit后交接A唯一writer gpt6_1_sol_xhigh__learning_loop（请求model=gpt-6.1-sol effort=xhigh fork=none，返回/root/gpt6_1_sol_xhigh__learning_loop；有效型号未独立回显）。A目前只读设计，交接后主代理停止候选修改，辅助不得改此进度文件。Trader最新授权收窄为仅评估，不实现adapter；不阻塞已定业务。
+
+### 云任务阶段 checkpoint（2026-10-04，B/C已提交，A进行中）
+
+B commit `dc0b1a28db0362c8a013ef8176dd06ebb26b0c26` 已完成，见上节。为独立事项不互相等待，C在独立detached工作树 `/workspace/life-os-interop` 基于B实施，由主代理唯一writer；A在 `/workspace/life-os` 由 `/root/gpt6_1_sol_xhigh__learning_loop` 独占源码/测试/相关文档，PROGRESS仍由主代理独占。未并发改同一工作树代码候选。
+
+C commit `58344c757391ed6190dbeecd1c186075f732153a`：Obsidian设置路径/显式URI打开已保存管理笔记、外部修改/移动/未知frontmatter/冲突往返；不读真实Vault/注册表，不造plugin/watcher。修复main.refresh并发读entities及conflicts捕获正文造成旧version的实际浏览器缺陷，先await捕获后读实体；首轮0/2（另手机测试导航操作错误）保留日志和截图，修复后新增2/2。plugins对mkdtemp目录realpath，修复路径alias且保留单entry权限，原合成alias失败、修复权限和清理测试通过。
+
+C最终check245/245（B241+4）、lint/typecheck/build，Chromium37/37（B35+2），release scan及diff检查通过；日志/tmp/life-os-evidence/c-check-final.log、c-e2e-final.log、c-release.log；原失败c-e2e-before.log/c-e2e-before-artifacts、plugin-alias-before.log。截图obsidian-1440.png/obsidian-390.png已实际查看。独立审查请求gpt-6.1-sol/high/fork none，task与返回标识/root/gpt6_1_sol_high__interop_review；有效型号未独立回显。审查独立4/4通过，无具体阻断。C writer已停止，待A交回后由主代理串行整合，不能把C结果算作A已验收。
+
+A最新进度：显式schema4、底层结构化校验、核心命令/API/CLI初版typecheck通过，UI与验收编写中；尚未宣称新单元/浏览器通过。主代理已提前提示source+itemId跨version首答、历史快照暴露、数据ID与relations一致、技能/题型构成可比性、重复不扩大独立样本、教师新修订冲突及删除撤销要求。
+
+交付与禁止项不变：**未push任何新成果**。B临时完整bundle已验证 `/tmp/life-os-evidence/life-os-b.bundle`，只含B，不是最终A/C交付；对应patch/manifest-b.json保留。最终需A完成+独立整体review+组合回归，再生成最终完整bundle/patch+manifest，不自动上传Library。Mac原生Codex及既有cloud/Claude双review→修复→复验后才最终GitHub发布，再云pull核SHA；Mac GUI/系统URI、Safari/手机、4310/4311主入口切换/真实数据迁移留本地，Watch延期。Trader仅评估不实现adapter。真实产品云sync provider/凭据/范围未定，未自行选供应商/付费服务。仍无部署/改默认分支/强推/私人数据访问。
+
+A早期独立核心review：显式gpt-6.1-sol/high/fork none，返回/root/gpt6_1_sol_high__learning_core_review；有效型号未独立回显。只读/tmp合成探针发现P1通用save覆盖配置历史、sync改题身份，同修订改teacher原文，writer最新实现已拒绝前三类原反例；仍待writer闭合后补录更早作答导致first/comparable伪绿、teacher通用save升来源revision却未更新source receipt。证据/tmp/life-os-evidence/core-review/probe.ts、probe-v2.log、chronology-probe.ts、chronology-before.log。父代理另以a-parent-compat-probe.ts实际复现未升级schema3自定义attempt被新协议误拒绝（a-parent-compat-before.log），已交writer。报告为动态开发早审，不是最终整体review；A仍在实施UI/测试，未收口。
+
+A阶段复核：新增定向14/14通过，包括真实HTTP/CLI、关闭重开与实际备份恢复；首次12项10通过2失败为新增测试误用Vault.path，已改为read().path保留原日志。首次aggregate在lint两项失败尚未算通过（a-check-initial.log）。父代理旧schema3自定义attempt原反例已通过（a-parent-compat-after.log）；独立早审原反例全部闭合（core-review/probe-after-source-binding.log、chronology-after.log），不等于冻结后整体review。父代理随后实际复现generic save同时修改teacher contract与entity source两处revision可绕过imports/source_receipts更新，证据a-parent-source-bypass-probe.ts及a-parent-source-bypass-before.log，已交writer追加回归修复；此checkpoint仍未收口或推送。
+
+### A实现交接（2026-10-04）
+
+A writer已明确停止源码/测试/docs写入及测试服务，主代理恢复候选唯一写入权。最终check **258/258**（B241+学习17）、lint/typecheck/build通过，完整Chromium **38/38**（原35+学习3）通过；release:scan无配置命中，diff检查干净。日志a-check-handoff.log、a-e2e-handoff.log、a-release-scan.log，桌面/390px截图a-loop-desktop.png、a-loop-mobile.png均保留。
+
+追加修复有证据：teacher双改source/contract通用写绕过由受控sourceImport通路限制，新建也必须有来源收据；严格ISO/IANA时间规则移至无Store依赖共享模块，generic/source/sync不能写入专用入口拒绝的时间；停用阅读模块不能建立新学习关联，既有历史仍可更正/撤销。父代理原probe复跑均拒绝（a-parent-source-bypass-after.log、a-parent-timestamp-after.log）。实际close/reopen、backup/restore、分阶段升级第二步失败重试和关联删除均有测试。
+
+保留三次完整浏览器37/38失败：先旧helper把语言select当text，其次选择空placeholder，第三次长删除关联ID在390px横向溢出。前两次按真实非空控件契约适配helper；第三次修长标识换行，并增加删除状态无溢出、恢复后真实UI就绪断言；原CRUD/关联/查询/复盘及原no-overflow断言均保留。失败日志/截图目录a-e2e-final/complete/ready.log及a-e2e-first/second/third-results。初轮新UI的datetime-local自动规范化测试输入失败另保留a-ui-initial.log，未放宽实际历史时间断言。
+
+下一步本地commit A、串行整合C、冻结组合候选做独立整体review和实际组合回归；上述阶段证据不冒充组合候选已验证。没有push、Library上传、部署或主入口/真实数据切换。
+
+### 组合候选独立审查 checkpoint
+
+A提交`c2eede0`，C串行cherry-pick为`9922d47`（仅CSS追加区冲突，保留两组完整样式），文档校正提交`157fb926`。该冻结候选实际组合check **262/262**、lint/typecheck/build，完整Chromium **40/40**全部通过，0 skipped；日志combined-check.log、combined-e2e.log。远端只读复核业务仍e6056782、main仍7ebb56b9；没有远程写入。
+
+独立整体review显式请求gpt-6.1-sol/high/fork none，返回/root/gpt6_1_sol_high__combined_review；有效型号未独立回显。审查发现新反例：P1随机operationId的teacher sync把rev2回退rev1并改原文而旧receipt不变；P2 generic新建config可多首版/跳revision；P2 generic新建可绕过停用reading的新关联禁令。证据/tmp/life-os-review-combined-sol-20261004/probe.ts、probe.log。这说明原262/40未覆盖这些入口，不能据绿测试封版。审查者已停止；主代理在测试服务结束、工作树干净后，把候选源码/测试写入权重新独占交给原A writer修复这3项，主代理只写PROGRESS及/tmp交付工具，不并写源码。
+
+外部改teacher原文触发契约拒绝是预期保护，review实际确认外部文件/历史/receipt和重启均保留。没有pending时recover-note不是恢复入口；保留外部副本并手工恢复受保护正文后conflicts/backup正常（recovery.log），未另定为阻断，需明确文档步骤。三项修复后须原反例复核和最终组合验证；本地bundle/patch生成工具已准备但尚未生成最终包，不自动上传。
+
+最新范围协调：用户另授权“交易与研究”独立模块先计划→Mac原生Codex及Claude插件review修订→无关键问题后云实施。父线程已启独立Mac规划任务，仅写文档，不与本候选并写业务。最终plan尚未交至本云任务；当前继续原范围修复，不预先实现Trader，不丢弃现有变更。原范围达到可审查时照常交付干净SHA/证据，未来以该提交为续接点，核对plan与双方差异、祖先关系及唯一writer后顺序加入同一集成链。未来首轮仅历史回测/研究记录，不含实盘、券商或真实个人数据上传；此新授权不改变当前禁止自动push/Library上传/部署的边界。
+
+三项修复已由原writer交回并停止全部源码/测试/docs及测试服务，主代理恢复唯一写入权。共享层新增配置goal+language单根、连续revision、同父链及唯一后继校验，墓碑保留链位置；configure/report/UI按语言一致选择。teacher增量同步绑定source operation、单调修订、已保存contract与receipt/import operation digest；bootstrap采用显式历史上下文并在同一事务校验receipt，restore保留合法历史。新停用reading计时关联在generic/source/sync统一拒绝，旧related关系不能冒充已有计时关联；真实既有计时关联仍可更正、删除与恢复。外部teacher受保护正文的手工恢复步骤已写入learning-loop文档。
+
+修复后定向 **29/29**（learning19+bootstrap10），完整check **264/264**、lint/typecheck/build，学习UI **4/4**通过（新增同目标双语言配置历史1项）；release scan、diff检查通过。主代理已实际读取日志a-review-fix-targeted.log、a-review-fix-check-final.log、a-review-fix-ui.log、a-review-fix-scan.log。新增测试初轮17/19及TS union类型错误保留在a-review-fix-unit-expanded.log/a-review-fix-check.log；修正测试构造、大小写regex及显式类型后不改变语义断言。下一步固定本地修复commit，由原整体审查席位独立复核三反例与合法相邻路径，并实际跑组合完整41项浏览器回归；尚不以阶段4/4代替最终整体验收。
+
+修复提交`c9b5a24a8782633527f11d81cc1d39a365357d5e`独立复核：原3项均实际拒绝，backup前后相等；必要相邻4/4通过。但发现合法恢复回归：双副本teacher rev1，一方人工改摘要、另一方正常导入rev2后产生conflict，选择incoming因resolveConflict缺来源操作上下文而报错。完整合成反例teacher-conflict.ts/.log保留在/tmp/life-os-review-combined-sol-20261004。该新阻断不得以264项通过忽略，主代理安排原writer继续有界修复受控来源冲突路径并验证两种选择/收敛/保护。
+
+c9b5a24完整浏览器新增插件流程超时，原始截图/error-context保留；定位第二次enable后立即展开旧PluginCard，state变更remount将其关闭。首次enable已有等待“已启用”断言，第二次缺失；拟按真实状态就绪补断言，保留权限、调用、数据与卸载完整要求，不延长超时或跳过场景。完整结果及修后复验随后追加。源码在本轮浏览器结束前保持冻结；writer先只读设计，明确交接后才续写。
+
+该轮完整Chromium最终 **40/41**（唯一上述插件测试时序失败），日志combined-e2e-c9b5a24-failed.log及同名前缀failed-results已保全。测试进程/服务结束后已正式将源码/测试/docs独占交回原A writer；主代理仅PROGRESS与/tmp。writer进一步确认明确local裁决回传会涉及base rev2→value rev1，且未解决teacher冲突的backup restore因缺待接受receipt受阻；均纳入同一合法恢复链。方案以实际已存source operation、对应receipt及resolves引用的历史完整快照证明裁决，不开放generic或伪resolves回退；主代理要求新增校验限定teacher路径，保留非teacher的原local裁决语义。原incoming失败探针在开发修复上已成功并清空conflict（a-resolution-original-probe.log），完整双choice/收敛/恢复回归尚待收口。
+
+恢复修复已交回，writer明确停止源码/测试/docs及全部测试服务，主代理恢复唯一写入权。最终check **265/265**、lint/typecheck/build（a-resolution-check-final.log），插件实际定向 **1/1**（a-resolution-plugin-ui.log），学习定向 **20/20**，scan/diff通过。真实未解决teacher冲突经backup恢复后，incoming/local两choice裁决、回传收敛、accepted head、旧来源重放、再次恢复、后续source3同步均通过；过期版本/receipt冲突/伪原文/无证明resolves均零写并保留冲突。
+
+接收有效resolution清理冲突前归档原losing operation/receipt，最后写已接受head；同packet重放applied0/conflicts0。该缺口第二轮确实复现，保留a-resolution-unit-second.log；初轮游标测试构造失败保留initial.log。插件仅新增第二次enable后的实际“已启用”就绪断言，未改产品权限/超时/原验收。下一步固定本地提交，原review席位只复核此次合法冲突与保护，主代理跑最终完整41项浏览器；未push/上传/部署。
+
+### 原范围最终验收与后续交接
+
+源码/测试冻结提交`5ff449ee68cee908b0aa92b3901a74be2b62755e`，最终check **265/265**、lint/typecheck/build通过，完整Chromium **41/41**（2.6分钟）通过。主代理实际核对全部日志、diff和关键截图。最终原review席位复跑合法teacher冲突成功/剩余0，必要定向3/3，原三个绕过反例再次拒绝且backup前后相等；无剩余具体阻断，所有辅助writer/reviewer及测试服务均已停止。最终文档提交只更新证据、当前边界与后续交接。
+
+本轮B、A及追加C开发验收完成，最终本地交付以`/workspace/life-os-delivery-20261004/manifest.json`记录的完整HEAD/tree、bundle/patch与隔离验证结果为准；该文件由固定提交的交接工具在仓库外生成，任何失败均保留，不以本条代替产物核验。原始日志位于/tmp/life-os-evidence，并随交接包保全必要通过/失败证据。没有push、Library上传、部署、改默认分支、强推或私人数据接入。下一执行阶段为Mac双review和原生复验；真实云sync、研究adapter、Safari/phone、主入口/真实数据Schema、Watch边界见validation末节，不能据两项完成称LifeOS所有优化完成。
+
+## 2026-10-05 Mac 原生双审（进行中）
+
+本轮负责人及唯一候选写入者为原生主代理。官方 read_thread/list_projects 已确认 thread `01a10885-6318-7911-bff4-6239fd7dbf77`、hostId `local`、life-os project `bcda2e40-d57f-4c9b-9296-08feea61b464`；独立工作树 `$CODEX_HOME/worktrees/658c/life-os`，分支 `codex/lifeos-local-review-20261005`。初始工作区干净，HEAD `dcaa738444579b7cc45c730b001cdf82ddcb19b6`、tree `61061ed9fd85beaf3ca84310cfa1c8f65b4fb9bf` 与交接完全一致；业务基线 `e6056782b30e4873197f289881b781549eb3918d` 是其祖先。
+
+受保护要求来自当前委托、AGENTS/GLOBAL-AGENTS、acceptance/validation/learning-loop 及 HANDOFF。目标为本候选发布扫描、学习闭环、Obsidian/路径规范化的完整 Codex 与 Claude Workflow 审查、确认缺陷修复和 Mac 合成复验。八领域、正式验收、历史/来源/权限/零写失败恢复不变量不变。仅本工作树允许业务修改；主工作树正在写入的新 Trader 计划与进度由协调者串行整合，不在本轮实现。禁止真实数据库/Vault/个人配置/密钥读取、4310/4311 服务或主仓 .local 变更、Engine 变更、push、部署及 Library 上传。回滚限本轮自有提交；需要改变正式契约或超出授权才暂停依赖工作。
+
+本任务实际加载 Codex–Claude `0.7.1+codex.20261003035940`，加载/磁盘代码身份相同；CLI `2.1.289`，Opus 在线最小调用通过。采用新 `role=review / review_mode=isolated / review_scope=full` 入口，要求内置 codex-full-review 全八阶段，原仓 OS 写保护及外部 MCP 禁用；准备请求 Opus/high，显式成本上限与执行时限，不传 CLI 不支持的 max_turns。预检不是业务审查完成。
+
+证据目录 `/private/tmp/lifeos-local-review-20261005`；云端 265/41 和历史 Mac 结果均仅为输入。本轮将使用独立 Node24.19.0、合成临时目录、空闲专用端口验证 check/e2e/release:scan 及真实 Mac 路径别名与恢复，未执行项不记通过。当前尚无本轮业务审查结果。
+
+新“交易与研究”审定plan尚未交至此候选，后续以交接manifest的最终SHA为安全续接点，先核对Mac/云差异、祖先关系、无人并写，再按审定范围顺序加入同一集成链；不等待该规划而扣留已经验收的原范围成果。
+
+### 2026-10-05 恢复续接
+
+用户最新要求：读取本机 `lifeos-recovery-20261005/recovery-handoff.json`，复用原 run 已完成阶段，一次一个重型任务；Obsidian 先修测试控制再做小型隔离验收；交易计划双审已完成、不重做；仍不 push。当前 HEAD/tree 与 dcaa738 冻结基线一致，源码无变更，只有本进度 checkpoint。原 `/private/tmp/lifeos-local-review-20261005` 在恢复时已不存在，不能继续把先前临时日志/截图当作现存交付文件；必要反例与最终检查将重新保全。
+
+插件恢复实际确认 `run-tobg4cedLcEySI8n` 的 bridge/Claude child 进程组均已停止，lane 空闲，原仓 workspace digest `92869be263b687a8c8080b04f93510bd64a75f0c08720116e3b8b2d7d719ef8f`；已调用 reconcile，旧 run 仍为 unknown、未接受。CLI 2.1.289 与 loaded/disk bridge identity 均与原 run 一致。恢复包五个阶段缓存哈希已核对，均只作未接受证据；接续 fresh revision 仅顺序完成复杂度、独立核验及合成，不重跑五阶段或交易规划。此任务局部 continuation 基于原内置 Workflow，仅替换五个已完成阶段为缓存输入，不修改安装插件或原 run 状态。
+
+Obsidian 前轮探针存在未确认整个进程树停止即请求后续启动、日志无上限等测试控制缺陷。恢复材料只能证明时间关联，不能证明 Helper 内存分配根因；GUI 未通过。后续先核查并补全专用串行 guard，再做一次有时限、RSS/日志/进程数监视的合成实例，结束须核对进程树清理；与 Claude/完整浏览器回归不重叠。不重放旧无界探针。
+
+恢复接续 run `run-9ztQdbacvJK7DdLp` 已实际启动 Opus 5.5/high，原 run 作为 previous_run 保留；任务局部 recovery Workflow 的实际五份 cached_stages 与恢复 JSON 逐项一致，复杂度→独立核验→合成三个阶段已出现实际完成事件，父会话仍在保存完整报告，尚未接受。原仓 OS 沙箱策略实测 touch 唯一路径被拒且无文件生成，外部 MCP 配置为空。恢复与调用证据已保存到本机 task-4 下 `lifeos-local-review-20261005`，不再只依赖临时目录。
+
+测试控制器补了“日志文件先独占创建、再启动进程”，避免输出已存在时仍误启动。轻量真实进程检查 **5/5**，包含限时、限日志、低阈值 RSS、主进程退出后的活子进程清理，以及输出已存在时根本不启动；观察到的任务进程均已清理。没有启动 Obsidian、没有制造内存压力。完整原生 GUI 仍未验收，重型工作仍只有 Claude 接续轮。
+
+### 2026-10-05 修复与复验 checkpoint（Claude 再审前冻结）
+
+恢复轮 `run-9ztQdbacvJK7DdLp` 实际完成复杂度→独立核验→合成，连同原五份缓存覆盖原候选八阶段；完整 JSON 已捕获。该 run 最终为 **failed**：主代理在运行期间追加 PROGRESS，触发原仓 workspace invariant；前后证据仅此进度变化、HEAD 不变，不能归因 Claude 写业务代码。保留 failed，不调用接受裁决；原 `run-tobg4cedLcEySI8n` 仍 unknown/reconciled stopped。后续新 revision 在修复提交上只做独立修复核验与合成，运行期间原工作树（包括进度）完全冻结。
+
+Codex 已核对原报告实际数组26条（5 P2、21 P3），原摘要28条为计数错误；原文不改，逐项理由见本机交付 `finding-adjudication.json`。已修教师来源冲突后续编辑同包/分包卡死，未裁决来源只作原文验证依据、不提前写 receipt/operations；裁决验证来源、base 和完整所选状态，保留双向收敛/未决与裁决后 restore/bootstrap/replay/伪造零写保护。另修报告失败丢失重试身份、已有 inactive goal 关联更正、旧非闭环类型 source import 误拒、提交正文与连字符密钥扫描、默认 Mac tmpdir 测试夹具；收窄配置历史集合查询，消除比较判据对英文错误文字的依赖。教师外部正文仍严格拒绝，增加打开前提示、报告诊断及原有手工恢复说明，不新增恢复状态机。
+
+原13项回归7失败及浏览器单项失败、默认tmpdir9项7失败日志均保留。首轮新增 legacy 测试把输入 deleted=false 错当必须保留墓碑，已按升级前后实际语义纠正助手临时预期；教师时区测试改为合法同offset但不同zone以检验原契约，而不是提前命中非法offset。正式需求/验收/golden语义未改。修后完整 `npm run check` **281/281**、lint/typecheck/build通过，0跳过，使用默认macOS TMPDIR。完整 Chrome 首轮41/42仅私人测试服务teardown超时；夹具结束后先关闭自己浏览器context再关服务，全部业务断言/45秒限制保留。最终 `npm run test:e2e` **42/42**、2.4分钟、0跳过，端口4396；追加lint及release扫描17个HEAD可达提交无命中。
+
+Obsidian控制器先独占创建日志再启动、串行锁、进程树清理和资源监视5/5轻量检查通过。一次真实独立profile/单篇虚构笔记实例于约3.15秒触发 **rapid_growth RESOURCE_STOP**：采样峰值525.72 MiB，日志1771字节，swap无增长；已观察6个任务PID全部停止，随后只读复查无Obsidian进程。**原生往返未通过，系统URI未测**；没有调高阈值或自动重启。该软监视不是OS硬内存上限，不能证明原事件的分配根因。完整证据已保全到用户本机 task-4 的 `lifeos-local-review-20261005/RESOURCE_STOP.json` 等文件。
+
+GitHub生成提交身份门禁仍是未来远程发布前待定/待验证项，未放宽指定noreply要求；规模索引、UI拆分等非阻断建议延期。交易计划双审按用户已完成事实记录，不重做、不实现。下一步本地修复commit→串行Claude修复复审→逐项裁决→交付bundle/patch/hash。仍不push、不碰主工作树/真实数据/4310/4311；当前唯一writer为主代理，无活动原生GUI或浏览器任务。
+
+### 2026-10-05 独立复审通过与诊断尾项
+
+`run-VcToLRC6yQS0FF9r` 对冻结修复提交 `0e7b0ae7a1c9b386a13411d2fe4a112b50b96f2a` 实际执行独立修复核验→合成；Opus5.5/high、provider退出0、原工作树前后干净一致、已观察进程全部停止，完整报告hash `21690a35b58b0db9d9b4c92d6133c65d26c3c43163e62f223f194aaa37dd827b`。Codex已逐条接受审查事实，非自动发布/GUI验收。26条原发现全部对应：9 fixed、6 partially_covered、9 deferred、2 rejected；新增先source后edit裁决4种组合的独立probe **4/4**（含双向收敛/重放/restore/第三副本bootstrap）。原报告摘要“P1-class”与原V-CSR-1条目P2不一致，保留原文，以原正式条目P2记历史。
+
+复审新增P3 N-WEB-TEACHER-DIAG：网页在读取闭环report前已被教师外部正文保护阻断，故不能让用户依赖该网页报告来找原文。已补原始校验错误的教师笔记ID/同数据目录CLI入口，网页启动失败改为中性“无法读取本地空间”，文档明确CLI或认证HTTP报告可达；共享校验、原始错误、事务回滚与手工恢复机制不变。新增真实浏览器原版本失败，修后验证错误标识、报告原文、外部文件保留及手工恢复后重连/版本不增加。最终完整check **281/281**、lint/typecheck/build，完整浏览器 **43/43**、0跳过、2.5分钟；日志check-diagnostic-final.log、e2e-diagnostic-final.log，原失败diag-before.log保留。下一轮仅对该小差异独立闭合，不重跑全审或已完成测试。
+
+按补充要求静态检查Obsidian守护器：无启动暖机区分；RSS是本任务Node+App+Helper进程RSS相加，可能重复计共享页，不是唯一物理内存或heap。实际间隔约235–250ms，时间戳在ps/系统查询前取得并四舍五入，增长估算有调度/采样误差。触发的两个区间247/249ms，增速256.77/1212.22 MiB/s；第一次仅超256阈值约0.3%，第二次进程数2→5。**正常冷启动被判为rapid_growth有明显可能；该次不证明泄漏或复现原系统事故。** 保留全部阈值/样本，未抬阈值、关保护或重开App；原生往返与系统URI仍未通过/未测。静态分析见monitor-static-assessment.json，已在本轮安全停止后归档。
+
+
+### 2026-10-05 Mac 恢复尾项核验与交互收尾（更新 2026-10-04T22:38:22.859737+00:00）
+
+负责人/唯一写入者：主代理Codex，仍在本任务独立worktree。交易计划双审复用，不重做；不push，不动主checkout、4310/4311或真实数据。原run-tobg4cedLcEySI8n维持unknown恢复记录；run-9ztQdbacvJK7DdLp因主代理在审查期间追加PROGRESS而failed，不改写为成功。完整修复复审run-VcToLRC6yQS0FF9r已reported并经逐项裁决accepted。
+
+第一次诊断闭合run-i1VFI3bzNkT5mIGh因父会话把结构化输出要求误作取消依据而提前停止Workflow，维持blocked；未到预算/时限，无源码变化，已观察进程全部停止。插件拒绝resume该blocked会话，故同代码基线fresh revision5 run-sGDM1NJ4kBGr_pbV，仅恢复尾项。实际Workflow wf_b73a852a-c55、单verification子阶段a70cdb4f77e76a7b9完成，报告SHA256 60a9e56342fdad32012d1786c8a4ad6a7742507d3068fd222d96a39c4a1dc81e；原仓OS拒写探针与external MCP为空核实，原文件无变、invariant_error=null、已观察进程live_count=0。Codex完整读取后逐项accepted，N-WEB-TEACHER-DIAG闭合；保留12个既有条件/低优先级项。
+
+本次独立核验另确认两项P3：N-FDIAG-SCOPE仅在数据库元数据损坏或关联笔记身份被修改时恢复文案可能误导；N-FDIAG-DISMISS中关闭启动错误会隐藏重新连接并误显示加载。已最小修复：提示改为依据原错误核对修复；关闭按钮仅在ready后出现，不增加状态机、不改校验/回滚/原始错误。新增6行真实E2E断言在旧实现失败（dismiss-before.log及截图），修后完整check **281/281**、lint/typecheck/build通过，完整Chrome E2E **43/43**、0跳过、2.5分钟（check-closure-final.log/e2e-closure-final.log）。下一步只对这几行差异做独立闭合；审查期间再次冻结全部原文件，结束后再写最终交付记录。
+
+Obsidian保持RESOURCE_STOP，不重启、不调阈值。原生往返not_passed、system URI not_exercised；已有静态分析未证明泄漏/原事故复现，冷启动误判可能保留。正式需求、验收、阈值和指定基线均未降低。
+
+
+### 2026-10-05 Mac 本地审查最终收口（更新 2026-10-04T22:44:16.784003+00:00）
+
+业务代码最终基线 **6caaa94958438d6fb40a67518f7a7afa966c8c40**，tree **e5db691f626ee3576dc0cbce63842e945883069d**；后续只追加本节及validation文档，最终交付commit/tree以本机delivery-manifest.json为准。最后定向run-uPHDhym6M9BNIXwJ实际Opus5.5/high、Workflow wf_9293335e-80c单verification子阶段完成，完整报告SHA256 **44de425ef3528e661be69f4b0771c95c79ce64e193745d28ff5c1c039876a121**。Codex独立核查并accepted：N-FDIAG-DISMISS/N-FDIAG-SCOPE均closed，无新增finding。原树未变、OS拒写、external MCP空、invariant_error=null；回执已观察进程stopped/live_count0。原始错误报告和失败/阻断run均保留，不改写成功。
+
+原26项最终分类9fixed/6partially_covered/9deferred/2rejected，不等于26个bug。三项复审诊断尾项已全部关闭；仍保留12个合并后的条件/低优先级项（1个条件P2、11个P3测试覆盖/维护/规模建议），逐项见finding-adjudication.json与完整报告。统计修正：最后测试差异为6行2断言，只有关闭按钮断言在旧实现复现；正常ready后关闭按原handler源码核查。报告手写Workflow哈希少一字符，以workflow-provenance.json实测64位值为准，不改原报告。正式验收语义无改动。
+
+**V-GH-COMMITTER-OPEN的具体边界**：release-scan.mjs:123–129扫描HEAD全部祖先，author和committer都要求后缀@users.noreply.github.com；若平台生成提交使用本地部分为`noreply`、域名为`github.com`的其他地址，会触发non-noreply拒绝。现有check.yml在push/PR运行扫描，checkout未指定ref；未来PR合成merge提交可能触发，这属于条件性CI/发布策略兼容问题，不是当前业务故障或已发生泄露。合成回归已验证扫描机制，未运行真实远端PR/CI，未核分支保护设置。当前人工提交使用指定身份，本地扫描通过；传输相同独立审查分支本身不生成新commit，因此此P2本身不阻止分支同步。**当前仍因用户暂不push要求而禁止远程写入；未来必须先核已授权个人执行环境身份和受限历史更新条件。** 未放宽邮箱门禁、改CI ref/merge策略或重写历史。
+
+只读核对已双审交易计划P0–P6前置和R18/R19，不重新审查/修改计划：该P2不构成隔离合成开发的前置阻断；P0仍须串行整合本候选后固定最终HEAD/ancestry/dirty/唯一writer和计划hash。P6仍必须在最终候选实际通过check/e2e/release:scan；若未来远端merge CI实际触发门禁，不能用本说明豁免。Obsidian原生RESOURCE_STOP与提交邮箱无因果依赖，也不自动阻断P0–P6合成开发；R18的语言/Obsidian代码回归和原生未通过边界须继续保留。本说明不授权本任务启动P0–P6、Engine、实盘或发布。详细条件及只读计划hash见release-gate-assessment.json。
+
+本任务所有代码测试、浏览器和Claude重型任务已结束；原生控制器此前已收回全部6个已观察PID，不重启、不抬阈值。无计划中的新重型动作，仅执行本地发布扫描与bundle/patch重放校验、证据哈希归档。其完成记录写入delivery-manifest.json/evidence-manifest.json及process-release.json，不再启动完整审查或原生验收。证据根：$LOCAL_REVIEW_EVIDENCE。
+
+
+最终轻量发布扫描曾因本节说明中的平台邮箱完整字面量触发non-example email；失败日志及当时bundle/patch/manifest保留于doc-scan-failed。将说明改成分开写本地部分和域名后，仅修正尚未发布的自有最后文档提交，业务代码6caaa949不变，不放宽scanner，也不覆盖原始失败证据。最终轻量重扫和重放结果见delivery-manifest。重型资源已释放给后续任务；本任务不追加Claude、浏览器、原生App或完整测试。
+
+
 ## 2026-10-04 交易与研究计划及独立审查
 
 用户授权先在本地丰富详细计划，安排 Codex 代理与已安装 Claude 插件实际审查、修订，关键问题解决后由父任务串行交接云端。当前本地基线 `e6056782b30e4873197f289881b781549eb3918d`，分支 `feat/local-life-os`；开始时工作树干净。原生本地规划任务 `01a1085a-927b-7362-97d7-268f1bc5490b`（请求 `gpt-6-astra / xhigh`）为计划与审查文档唯一整合写入者；本地协调主代理维护本进度，其他执行者不写进度。
@@ -140,3 +283,72 @@ Codex 独立审查线程 `01a10861-8f7d-7b31-b6f5-dcde323005b9` 实际使用 `gp
 串行交接依赖：父任务已提供原范围候选 `dcaa738444579b7cc45c730b001cdf82ddcb19b6`，其 265/265 与 Chromium 41/41 为父任务报告的原范围证据，不是本轮验证。须待原范围独立审查及串行修复整合后，以父任务确认的最终 HEAD 执行 P0，复核语言/Obsidian 和共享 Store 接口，再安排 P1–P6；本地 `e605678` 仅为调查基线。旧 v1 笔记覆盖窗口与旧摘要算法风险留在 P0 核对，不能报告已经修复；P7 真实本地文件接入仍须后续明确授权。当前无待用户裁定的计划级关键取舍，剩余门槛是前置最终基线和后续实际实现验收。正式进度继续由父协调单一维护。
 
 按父任务随后明确授权，将最终两文档及无私人定位的校验清单打成一个私有 Library 交接包：43,459 字节，SHA256 `5f5219d38655ad8a95a22a59d4add8255fe316c53011e5cc7a2ad294a9912118`。上传成功，精确 Library 身份已单独交父任务；未上传冻结草案、原始审查证据、运行数据或 PROGRESS 全文。原消息分片方案已停止，父任务应以此唯一包为准，按其内文件哈希验证后再使用。保存成功与接收完成分开记录；当前本地不宣称父任务已经下载校验。
+
+
+## 2026-10-09 分支、隔离架构与 Obsidian 整合阶段
+
+本轮来源：用户要求忽略原云开发执行器，梳理本地/GitHub全部分支、清理无独有成果的分支并保证同步；推送前核查数据/配置/模块隔离与上传内容，补齐缺口及Obsidian完善修复计划，具体实现由Claude执行，Codex同时审查产出和整体架构、职责、重复状态及补丁累积。该同步目标替代旧阶段的暂不push要求；仅在当前候选安全审计、必要修复与验证完成后同步通用源码。不因此授权真实私人数据、金融执行或公网部署。
+
+基线：整合分支由已复核候选 f76ea92c4337ee6661669d18d919549d49da5231 创建，最终业务代码6caaa949；最新GitHub业务分支e605678，main仍7ebb56b且与业务根无共同祖先；test/cloud-sync探针9442965为空提交，无独有代码。主checkout和658c旧候选保留，主checkout未提交PROGRESS/两份规划文档已按原字节复制与增量串行整合至本分支，未覆盖源目录。工作区唯一PROGRESS writer为Codex；候选具体代码writer为Claude独立副本，Codex核验后应用patch。
+
+边界与不变量：私人运行根/数据库/Vault/profile/templates/config/plugin授权/密钥留仓库外；本轮代码和验证只用通用实现与虚构数据。八领域、稳定ID、来源/历史/权限、正式验收和恢复语义保持；不以忽略文件规则作为运行隔离或内容无泄漏证明。Obsidian保留原RESOURCE_STOP，先制定并审查修复与安全验收方案，不为凑绿抬阈值。当前不切4310/4311或迁移既有数据。普通可逆修复持续推进，只有正式契约/指定基线/未授权范围或必要用户决定变化才请求review。
+
+回滚：当前整合分支自有变更/提交可撤回；旧worktree、bundle、原数据、源规划文件保留。远程仅预期SHA核对后的业务分支快进，不强推/重写main根；仅无独有成果的探针引用可按用户清理要求移除。main/default迁移需要单独明确历史方案，不能为了一个入口引入无关根或降低发布身份判据。
+
+本轮尚未重跑npm检查/浏览器/原生GUI；281/43为旧候选历史结果。正在运行架构审计run-X2_NWZiBl_SsaNLj（Claude Opus5.5/xhigh、analyze/readonly），其源目录658c保持冻结。下一步据代码事实选择第一批有界修复并派Claude实施，再由Codex核查架构方向、diff、反例和必要回归。
+
+
+### 第一批实施契约（2026-10-09）
+
+已查实触发与责任层：直接new Store/Store.restore能绕过server/CLI的仓库外路径检查；原发布扫描不能发现提交历史中的个人机器路径，旧未上传候选有此命中。第一批由Claude在本分支独立副本唯一写入：在Store创建/恢复入口复用outsideRepository、补可区分旧行为的零副作用反例；补便携忽略规则与不回显私人值的个人机器路径扫描（工作树/index/历史/提交正文/build），保持原凭据/数据路径/完整历史/noreply判据；脱敏当前文档并更新实际能力/隔离矩阵、缺口和Obsidian分阶段修复计划。
+
+不增加新的配置权威、数据库、同步状态机、通用插件框架或默认授权；现有动态Module/profile/templates机制继续复用。第一批不接真实数据、不切运行入口、不启动原生Obsidian、不改旧RSS阈值、不实现交易P0–P6/云同步。Obsidian计划须包含共享专用Vault、.obsidian配置保全、受保护教师原文、手工恢复、窄屏/键盘体验、轻量验证→监视校准方案→单实例原生验收的停止/清理/回滚边界，旧未通过保留。
+
+历史发布策略修正：不将含旧个人路径的f76祖先直接推送。旧候选完整留本地；已发表e605历史无个人机器路径命中，源主checkout的未提交文档保留原字节提交后，以其作为干净交付父版本，将最终经审查/脱敏代码树提交到该交付链。代码内容以f76及当前修复为基线，不回退功能，不重写旧refs。具体public交付需比对完整tree、必要检查/浏览器与全历史扫描后才同步明确业务ref。
+
+Claude架构全链路只读审计仍在658c，父源不改；第一批实施可与其隔离并行，审计出现新证据时只调整尚未解决部分，不重做已验证工作。实施copy期间当前原工作区完全冻结，Codex不追加进度或写实现；停止收回后再review/应用patch。原4310/4311/4396目前无监听，三数据根79文件指纹已保全在仓外审计证据。
+
+
+### 2026-10-09 第一批核验与第二批实施契约
+
+架构审计 run-X2_NWZiBl_SsaNLj 已停止，Codex逐项accepted_with_corrections：保持SQLite启停、profile偏好、插件授权及恢复职责；不批准部分成功列表替代现有失败语义、所有私有文件写入器重构或监视阈值豁免。Vault列表O(N*M)为静态机制事实，尚无实测性能结论。配置拼错scope会回退更宽投影，需共享严格读取。正式原生RESOURCE_STOP仍未通过。
+
+第一批run-CfQxzuMEhYjH2fcp已停止；Codex完整读report/result/patch，执行delivery.patch检查与应用。Claude独立副本Node24 check289/289通过；父任务另执行发布扫描回归29/29。新增Store边界反例的finally清理包含无归属.life-restore前缀，父任务在修正前不执行此测试，下一批须仅清理本测试创建路径。当前PROGRESS证据路径已泛化；旧候选历史仍保留私人路径，不直接推送。
+
+第二批唯一实现writer仍为Claude独立副本：复用config.json现有权威，补共享严格安全读取（错键/类型/非法范围拒绝、静态错误不泄漏值、符号链接/FIFO等非常规文件拒绝）；显式config init生成私有新文件0600，缺失配置不隐式生成或授权，config show不显示令牌；服务/CLI在Store副作用前验证配置。旧合法整模块授权继续合法，不通过新令牌格式要求改变既有契约。跨当前/其他LifeOS源码checkout检查须有具体可验证识别依据，不禁止一般私人Git Vault。
+
+同时修正第一批测试清理、计划CI状态（已有check.yml发布扫描，待远端新候选验证）、完整保全与逻辑备份区别、原生验收不臆造在场批准条件。只补相关反例与一次必要check，不改真实数据/启动器/旧候选，不运行Obsidian。此轮copy期间原整合工作区完全冻结，包括本进度；结束后由Codex审查diff、配置授权与恢复职责、重复状态、检查和发布安全。
+
+
+第二批run-i4LEGt8ooK7EBrzu已停止，12文件delivery.patch检查/应用完成；副本check295/295，离线npm ci缺缓存后复制同lock依赖实体，未隐瞒。源码无新授权权威/持久索引或热重载。Codex发现并实际复现两处未满足边界：syncScope内部entitiez错键仍静默忽略；直接initLocalConfig可在合成LifeOS源码checkout写config。已裁决accepted_with_corrections→next_round，applied=true，只退回这两处及O1文案。未在原件运行完整check/E2E，不能报已验收/同步。
+
+第三批窄修：config loader检查syncScope容器未知键且entities显式null/primitive拒绝，复用原permissions的已知类型/selection语义，数组旧形式仍允许；initLocalConfig自身在任何mkdir前复用outsideRepository与assertRunnableWorkspace，拒绝保全区/当前及其他源码checkout，保证直接调用零副作用。不扩展通用permissions或全部写入器。新增父反例及合成保全区检查，相关配置/安全测试和lint/typecheck即可；最终全量check/E2E由父任务串行执行。原件再次冻结。
+
+
+run-5x8Xy_sXYsOgfvDH已停止，四文件窄修检查/应用、父独立2/2反例通过，裁决accepted。新的共享config初始生成与scope校验已闭合；本阶段没有新授权文件/数据库或通用写入器框架。用户明确选择专用Vault先只在本机使用，不配置Obsidian Sync或网盘同步。
+
+父任务独立npm ci（专用cache、Node24，锁字节不变）发现npm audit 2 critical，均来自同一开发链concurrently→shell-quote1.9.0，官方GHSA-pqg4-j6r4-53mv修复版本1.11.0。本项目dev只有固定命令、concurrently使用字符串quote参数，未发现满足注释token+恶意换行触发的输入；生产服务不加载此dev依赖。仍做有界补救：Claude只为concurrently下shell-quote加精确1.11.0覆盖并生成一致锁文件，不做audit fix --force或全面升级；缓存中已准备官方1.11.0包。此次package-lock变更范围明确授权给该唯一writer，旧锁/版本由Git保全。运行官方安全quote反例（只生成字符串、不执行shell），旧漏洞与修后拒绝对照、固定concurrently双命令smoke、npm audit，父再npm ci和完整check/E2E。原件继续冻结，不切旧入口或真实数据。
+
+
+### 2026-10-09 最终验证与干净交付链
+
+全部Claude实现run已停止并逐项裁决：第一批入口/扫描、第二批配置及跨checkout、父反例窄修、开发依赖精确覆盖均已git apply --check并应用，Claude不再为writer。父任务独立npm ci按最终锁安装成功；Node24完整check297/297、0fail/skip，lint/typecheck/build通过，独立配置反例2/2及quote非法换行拒绝/普通字符串保留通过，npm audit全部级别0。未跑原生Obsidian。
+
+Chrome首轮执行沙箱内43项全部在browserType.launch阶段失败（0ms、SIGABRT、kill EPERM），业务断言未执行；原失败日志保全。执行环境批准同样43项、1worker/45秒、4396/虚构根/临时浏览器profile在外层沙箱之外复验，结果待收回；未缩减正式验收。此与旧Obsidian资源停止无因果混淆。
+
+主checkout三份原未提交任务文档已按预检SHA原字节保存为a6ad8f4c23cca06ae773d6aff2eaacd7401ed9d3，源工作树干净，未stash/reset。已确认GitHub个人执行身份BryanYue、仓库属同账号、push权限及指定noreply身份。旧f76完整历史留本地，不强推/改根；从上述已公开e605子链建立同最终tree交付，完整历史扫描后同步明确业务ref。最终SHA以分支和仓外delivery manifest为准，CI实际结果与Git快进另记。
+
+审计所问事项逐字保留并对齐当前授权：
+- “个人路径如果只在未推送的本地提交里：是否同意在首次推送前改写这 11 个本地提交，只改这两段文档？代码树不变，但 6caaa94/f76ea92 的 SHA 会变，已有证据清单里按 SHA 绑定的条目需要重新对应。另一种做法是接受这段路径进入公开历史。”该二选一不完整；本轮使用保全旧refs＋干净祖先同tree交付第三种方式，没有改写旧提交或接受路径上传。
+- “AGENTS.md、docs/GLOBAL-AGENTS.md（你个人的 Codex 全局规则）、docs/tasks/**/PROGRESS.md 以及 validation 里的证据叙述，是否继续放在公开仓库？建议：产品文档保留公开，任务进度和 agent 规则移到私有位置或去敏。”规则/任务契约本身不是私人数据；本轮保留必要通用要求和进度，只去除实际机器定位，完整原始证据保存在本机忽略目录。
+- “你是否打算对专用 Vault 使用 Obsidian Sync、iCloud、Dropbox 或 git 这类文件级同步？如果会，family 等私人笔记会绕过 Life OS 的同步范围被上传，需要先做模块级目录或同步策略。”已向用户转交，用户明确先只在本机使用专用Vault。
+- “Obsidian 监视器能否改成区分冷启动预热、并用单进程峰值或 footprint 计量（稳态阈值不放宽）之后，再做一次串行原生验收？”本轮没有采用放弃总进程保护或暖机豁免；未来先给测量与对照方案，需改变正式资源判据时按W10请求决定。
+- “main与业务根无共同祖先，默认分支迁移采用何种历史方案”默认入口选择已异步提交给用户，未获答复前保留main，不阻塞明确业务ref同步。
+- “是否需要只写仓库外新文件的config.json初始化命令”用户的动态生成配置目标已授权，现已实现并验证，不重复请求许可。
+
+后续顺序：Obsidian O1先实现只读诊断、单次操作扫描与明确隐藏目录边界/失败恢复反例，保持现有严格数据契约；O2复核390px与键盘入口；O3先静态/轻量监视观测，不改阈值；O4单实例虚构Vault原生往返与系统URI。代码writer继续Claude，Codex审职责/状态与实际反例、恢复和权限旁路；每阶段只收对应证据，不把模板/Schema/后台watcher/新状态库叠加作默认解决方案。深度体验后再规划真实数据迁移；交易研究已双审计划和P0–P6尚未实施，本轮不冒称完成。
+
+
+最终Chrome43/43、0skip通过（2.7分钟，Node24/本机Chrome、单worker、4396虚构数据），端口已释放；桌面与390px Obsidian合成文件往返通过，但没有启动原生Obsidian或测系统URI。完整check297/297、audit0与最终锁绑定，旧沙箱启动失败保留。三数据根79文件SHA仍全未变，旧源码worktree干净，主checkout原三文档保存提交干净。
+
+交付前协调核查：保留原f76完整历史及本轮候选本地提交，干净public提交使用a6ad8f4父版本与同一最终tree，不丢任何审定代码/规划文本。远端仅feat/local-life-os快进；probe为空提交无独有tree且预检bundle可恢复，满足清理条件。旧迁移origin bundle保留原文件与refs快照，正常GitHubremote将统一为origin，其他chat的658c worktree仍保留、不擅自归档。默认main未收到用户选择，保留其入口与历史；应用最新版使用业务分支。实际push SHA、scan/CI和最后清理结果在仓外交付manifest中记录，不将预期作为完成。

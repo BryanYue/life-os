@@ -31,13 +31,32 @@ import {
   upgradeBuiltin,
   pendingBuiltinLanguageUpgrades,
   upgradeBuiltinLanguages,
+  learningLoopUpgradeStatus,
+  upgradeLearningLoop,
 } from "./builtin-upgrades.js";
+import {
+  configureLearning,
+  recordLearningSession,
+  recordAssessment,
+  recordLearningAttempts,
+  proposeLearningMethod,
+  actOnLearningMethod,
+  importTeacherSummary,
+  reviseTeacherSummary,
+  learningLoopReport,
+} from "./learning-loop.js";
 import { ProfileManager } from "./profile.js";
 import { TemplateManager } from "./templates.js";
 import {
   assertRunnableWorkspace,
   prepareWorkspaceCopy,
 } from "./workspace-copy.js";
+import {
+  initLocalConfig,
+  loadLocalConfig,
+  redactedConfig,
+  syncGrant as configuredSyncGrant,
+} from "./config.js";
 const [command, ...args] = process.argv.slice(2);
 const root = resolve(process.env.LIFE_OS_HOME ?? join(homedir(), ".life-os"));
 const key = () => {
@@ -80,6 +99,26 @@ if (command === "preserve-workspace") {
   console.log(
     "Private local key file created; keep it separate from exported files.",
   );
+} else if (command === "config") {
+  outsideRepository(root);
+  assertRunnableWorkspace(root);
+  if (args[0] === "show" && args.length === 1)
+    console.log(JSON.stringify(redactedConfig(loadLocalConfig(root)), null, 2));
+  else if (
+    args[0] === "init" &&
+    (args.length === 1 || (args.length === 2 && args[1] === "--agent-token"))
+  ) {
+    console.log(
+      JSON.stringify(
+        initLocalConfig(root, { agentToken: args[1] === "--agent-token" }),
+        null,
+        2,
+      ),
+    );
+    console.log(
+      "config.json created (0600). No Agent or sync module is granted; edit it and restart the service to grant access.",
+    );
+  } else throw Error("config show | config init [--agent-token]");
 } else if (command === "restore" || command === "restore-encrypted") {
   if (!args[0] || !args[1]) throw Error("restore BACKUP NEW_DIRECTORY");
   const restored = Store.restore(
@@ -93,13 +132,39 @@ if (command === "preserve-workspace") {
 } else {
   outsideRepository(root);
   assertRunnableWorkspace(root);
+  const config = loadLocalConfig(root);
   const s = new Store(root, { skipNoteRecovery: command === "recover-note" });
-  const syncGrant = () => {
-    const config = JSON.parse(readFileSync(join(root, "config.json"), "utf8"));
-    return config.syncScope ?? config.syncModules ?? [];
-  };
+  const syncGrant = () => configuredSyncGrant(config);
   try {
     switch (command) {
+      case "learning-loop": {
+        if (args[0] === "status")
+          console.log(JSON.stringify(learningLoopUpgradeStatus(s), null, 2));
+        else if (args[0] === "upgrade")
+          console.log(JSON.stringify(upgradeLearningLoop(s), null, 2));
+        else if (args[0] === "report")
+          console.log(JSON.stringify(learningLoopReport(s), null, 2));
+        else {
+          const actions = {
+            configure: configureLearning,
+            session: recordLearningSession,
+            assessment: recordAssessment,
+            attempts: recordLearningAttempts,
+            method: proposeLearningMethod,
+            "method-action": actOnLearningMethod,
+            "teacher-import": importTeacherSummary,
+            "teacher-edit": reviseTeacherSummary,
+          };
+          const action = actions[args[0] as keyof typeof actions];
+          if (!action || !args[1] || args.length !== 2)
+            throw Error(
+              "learning-loop status|upgrade|report; learning-loop configure|session|assessment|attempts|method|method-action|teacher-import|teacher-edit INPUT_JSON",
+            );
+          const input = JSON.parse(readFileSync(args[1], "utf8"));
+          console.log(JSON.stringify(action(s, input), null, 2));
+        }
+        break;
+      }
       case "profile": {
         const manager = new ProfileManager(
           s,
@@ -335,15 +400,9 @@ if (command === "preserve-workspace") {
         break;
       case "export-sync":
       case "export-sync-encrypted": {
-        const config = JSON.parse(
-          readFileSync(join(root, "config.json"), "utf8"),
-        );
         output(
           args[0],
-          s.exportPacket(
-            Number(args[1] ?? 0),
-            config.syncScope ?? config.syncModules ?? [],
-          ),
+          s.exportPacket(Number(args[1] ?? 0), syncGrant()),
           "sync",
         );
         console.log("Local simulation packet exported");
@@ -351,20 +410,14 @@ if (command === "preserve-workspace") {
       }
       case "import-sync":
       case "import-sync-encrypted": {
-        const config = JSON.parse(
-          readFileSync(join(root, "config.json"), "utf8"),
-        );
         console.log(
-          s.importPacket(
-            readInput<SyncPacket>(args[0], "sync"),
-            config.syncScope ?? config.syncModules ?? [],
-          ),
+          s.importPacket(readInput<SyncPacket>(args[0], "sync"), syncGrant()),
         );
         break;
       }
       default:
         console.log(
-          "Commands: profile show|update PATCH_JSON EXPECTED_REVISION; modules list|enable|disable [ID]; categories; language-upgrades; upgrade-languages learning|languages; templates list|register|preview|apply [JSON_FILE]; preserve-workspace SOURCE NEW_TARGET --offline-confirmed; demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], builtin-upgrades, upgrade-builtin learning|languages, import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE, export-bootstrap FILE, import-bootstrap FILE [--accept-manifests], export-projection FILE, import-projection FILE, projections, plugins ACTION, import-research FILE, import-apple-health XML TIMEZONE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
+          "Commands: config show|init [--agent-token]; profile show|update PATCH_JSON EXPECTED_REVISION; modules list|enable|disable [ID]; categories; language-upgrades; upgrade-languages learning|languages; templates list|register|preview|apply [JSON_FILE]; preserve-workspace SOURCE NEW_TARGET --offline-confirmed; demo, backup FILE, restore FILE NEW_DIRECTORY, register MANIFEST, migrate MANIFEST [RENAMES_JSON], builtin-upgrades, upgrade-builtin learning|languages, import ENTITY_JSON, export-sync FILE [CURSOR], import-sync FILE, export-bootstrap FILE, import-bootstrap FILE [--accept-manifests], export-projection FILE, import-projection FILE, projections, plugins ACTION, import-research FILE, import-apple-health XML TIMEZONE; keygen FILE; backup-encrypted / restore-encrypted / export-sync-encrypted / import-sync-encrypted use LIFE_OS_KEY_FILE",
         );
     }
   } finally {
